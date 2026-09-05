@@ -89,8 +89,11 @@ export class CloudClients {
       // Ví local (token vc_live_* hoặc tài khoản chưa chuyển ví chung): billing trả 401/403/404 → đọc số dư qua compute /api/me.
       const status = error instanceof CloudError ? error.status ?? 0 : 0;
       if (!(error instanceof CloudError) || ![401, 403, 404, 502, 503].includes(status)) throw error;
-      const me = asObject(unwrapData(await this.vibecloud('/api/me')));
-      const balanceVnd = Number(me.balance_vnd ?? 0) + Number(me.promo_credit_vnd ?? 0);
+      const root = asObject(unwrapData(await this.vibecloud('/api/me')));
+      const me = asObject(root.user ?? root); // compute trả {user:{credit_vnd, promo_credit_vnd, total_credit_vnd}}
+      const balanceVnd = me.total_credit_vnd !== undefined
+        ? Number(me.total_credit_vnd)
+        : Number(me.credit_vnd ?? me.balance_vnd ?? 0) + Number(me.promo_credit_vnd ?? 0);
       return {
         balance_vnd: Number.isFinite(balanceVnd) ? balanceVnd : 0,
         currency: 'VND',
