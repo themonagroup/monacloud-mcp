@@ -99,7 +99,7 @@ export function registerComputeTools(server: McpServer, clients: CloudClients) {
   register('cloud_app_create', appNotice + APP_FLOW,
     z.object({ local_dir: localDir.optional(), name: z.string().trim().min(1).max(80).optional(), repo_url: repo.optional(), branch: gitPath.optional(), build_type: z.enum(['dockerfile', 'nixpacks', 'static']).optional(), dockerfile: gitPath.optional(), env: env.default({}), domain: domain.optional(), app_host_id: id.optional(), port: z.number().int().min(1).max(65535).optional(), sandbox, ...poll }).strict()
       .refine((args) => Boolean(args.local_dir) !== Boolean(args.repo_url), 'Chọn đúng một local_dir hoặc repo_url.')
-      .refine((args) => !args.local_dir || (!args.branch && !args.app_host_id && (!args.dockerfile || args.dockerfile === 'Dockerfile')), 'Upload local dùng Dockerfile ở root; branch/app_host_id chỉ dùng cho git.'),
+      .refine((args) => !args.local_dir || (!args.branch && (!args.dockerfile || args.dockerfile === 'Dockerfile')), 'Upload local dùng Dockerfile ở root (hoặc Nixpacks tự nhận); branch/app_host_id chỉ dùng cho git.'),
     async (args) => {
       if (args.local_dir) return local.create(args);
       const { sandbox: requested, wait, interval_sec, timeout_sec, local_dir, name, ...fields } = args;

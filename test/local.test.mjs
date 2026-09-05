@@ -245,7 +245,7 @@ test('redeploy rejects git source, preserves upload_required and never deploys a
 
 test('ambiguous local/git inputs and malformed local options are rejected before HTTP', async () => {
   await project({ 'index.html': 'hello' }, async (root) => fixture(root, () => { throw Error('must not fetch'); }, async (client, calls) => {
-    for (const args of [{}, { local_dir: root, repo_url: 'https://git.test/a/b' }, { local_dir: root, branch: 'main' }, { local_dir: root, app_host_id: 'host1' }, { local_dir: '\0' }]) {
+    for (const args of [{}, { local_dir: root, repo_url: 'https://git.test/a/b' }, { local_dir: root, branch: 'main' }, { local_dir: '\0' }]) {
       assert.equal((await call(client, 'cloud_app_create', args)).isError, true);
     }
     assert.equal(calls.length, 0);

@@ -37,7 +37,8 @@ export function localAppTools(clients: CloudClients) {
     const started = Date.now();
     const created = data(await clients.guardedVibecloud('/api/apps', { method: 'POST', body: payload }, sandbox));
     // Existing sandbox implementations may return an estimate job without an upload slot.
-    if (sandbox && !created.upload_url) return finish(created, args, true);
+    // Sandbox: API ước tính + URL giả, không cấp upload_url (backend 05/09) → không upload; nếu API cũ vẫn cấp slot thì đi tiếp.
+    if (sandbox && !created.upload_url) return finish({ app_id: created.id ?? created.app_id, ...created, sandbox: true }, args, true);
     if (typeof created.id !== 'string' || !created.id) throw new CloudError('invalid_upload_response', 'API không trả app id cho source=upload.', 'Đọc cloud_app_list trước khi thử lại; không tạo trùng app.');
     const appId = created.id;
     try {
