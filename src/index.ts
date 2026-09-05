@@ -24,7 +24,7 @@ async function main(): Promise<void> {
     return;
   }
   if (command === '--version' || command === '-v') {
-    console.log('0.3.0');
+    console.log('0.4.0');
     return;
   }
   if (command === '--help' || command === '-h' || command === 'help') {

@@ -2,6 +2,18 @@
 
 Tài liệu này dành cho Claude, Codex, Cursor và agent dùng Model Context Protocol. Mục tiêu là hoàn thành tích hợp end-to-end mà không yêu cầu người dùng mở dashboard; các bước human gồm đăng ký MONA Pass, duyệt chi phí, thêm DNS khi cần, nạp tiền và OTP/KYC bắt buộc.
 
+## Luồng chuẩn 0.4.0: AI làm 99%
+
+Prompt Claude Code: **“Đưa dự án này lên MONA Cloud, dùng thư mục hiện tại”**.
+
+1. `cloud_app_detect({local_dir: "/đường/dẫn/tuyệt/đối"})` nhận diện stack/port/build và tên env hoàn toàn offline. AI sửa start/Dockerfile nếu cần, không chạy lệnh start gợi ý một cách mù quáng, không đọc/in giá trị `.env.example` ra chat.
+2. `cloud_app_list`, `cloud_app_host_list`, `cloud_prices`/`cloud_packages`/`cloud_plan_list` và `cloud_balance`. Chưa có host thì `cloud_app_create` cùng local_dir với `sandbox:true` để lấy `estimate` chi phí giờ/gói. Hỏi human **một lần** duyệt chi phí; đã duyệt thì tiếp tục.
+3. `cloud_app_create({local_dir, name?, env?, sandbox:false})` đóng ZIP và upload. Poll tới done/succeeded, kiểm HTTPS/health rồi trả `{url, app_id, build, seconds}`. Khi response có `sandbox:true`/`needs_cost_approval:true`, đó vẫn là preview; làm theo `next_step` trước khi gọi thật.
+4. Nếu human có domain, `cloud_app_domain_add({app_id, host})`, đưa đúng CNAME do API trả, chờ DNS và kiểm HTTPS. Không tự đoán target CNAME.
+5. Sửa code local: `cloud_app_deploy({app_id, local_dir})`. Chỉ đổi env: `cloud_app_env_set` với map đầy đủ rồi `cloud_app_deploy({app_id})`. Timeout giữ job_id/app_id để tiếp tục, không tạo app mới.
+
+Human chỉ cần đăng ký MONA Pass/device flow, duyệt chi phí một lần và nạp tiền khi hết credit 20k; DNS là bước thêm khi dùng domain riêng. AI làm các bước kỹ thuật còn lại. `.env*` kể cả `.env.example` không vào ZIP; truyền secret cần thiết qua `env`, không công khai. Xem [hợp đồng local deploy](local-deploy.md). VPS/database thủ công dưới đây chỉ dùng khi dự án cần hoặc người dùng chọn.
+
 ## Quy tắc vận hành
 
 1. Bắt đầu bằng `cloud_whoami`. Nếu nhận `login_required`, yêu cầu người dùng chạy `monacloud-mcp login`; không hỏi username hoặc password trong chat.
@@ -119,7 +131,7 @@ Dùng `monapay_create_qr` khi đã có đủ thông tin ACB/VA và cần render 
 
 ### 6. Deploy và xác minh
 
-Với repo git, ưu tiên `cloud_app_create` (đang mở): đọc `cloud_app_host_list`, sandbox trước nếu chưa có host, báo ước tính và duyệt rồi deploy thật. Dùng secret env, chạy migration và kiểm HTTPS/health. Chỉ triển khai VPS thủ công nếu người dùng chọn. Sau đó:
+Với dự án local, ưu tiên `cloud_app_detect` rồi `cloud_app_create(local_dir)`; git dùng `repo_url`: đọc `cloud_app_host_list`, sandbox trước nếu chưa có host, báo ước tính và duyệt rồi deploy thật. Dùng secret env, chạy migration và kiểm HTTPS/health. Chỉ triển khai VPS thủ công nếu người dùng chọn. Sau đó:
 
 - tạo checkout sandbox;
 - tạo transaction sandbox;

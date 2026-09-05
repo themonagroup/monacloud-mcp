@@ -1,4 +1,34 @@
-# STATUS — monacloud-mcp 0.3.0
+# STATUS — monacloud-mcp 0.4.0
+
+Updated: 2026-09-05 (Asia/Ho_Chi_Minh)
+
+## Brief deploy local — hoàn tất offline
+
+- `cloud_app_detect(local_dir)` và alias `vibecloud_app_detect`: Node/Next/Vite/Python/PHP/static, port/start/Dockerfile/build_type, tên env từ `.env.example`; không mạng, không chạy code dự án.
+- `cloud_app_create(local_dir)`: ZIP nguồn local trước HTTP, tạo `{source:"upload",name,build_type,env,port,domain?}`, nhận `{id,upload_url,max_bytes}`, multipart `archive` + `build_path`, poll job, trả URL/app_id/build/seconds. Giữ luồng git và mặc định 0.3.x.
+- ZIP deflate/UTF-8/UNIX mode, tối đa 83,886,080 bytes (80 MiB); loại node_modules/.git/.env*/pem/symlink, áp dụng `.gitignore` root+nested và `.dockerignore` root. Giữ dist mặc định để không phá Dockerfile COPY output. Không cần dependency hoặc shell ZIP.
+- Local create chưa có host/preview: tự sandbox, trả estimate + needs_cost_approval; agent hỏi human duyệt một lần rồi gọi thật. Preview cùng cấu hình giữ tối đa 10 phút trong MCP session. Host chưa ready và balance thiếu đều chặn tạo thật; sandbox bỏ Billing.
+- Redeploy có local_dir: zip mới, xác minh source=upload, upload và chờ job trước POST deploy. Không local_dir: dùng bản đã upload. 409 upload_required, upload/build lỗi và timeout giữ hướng dẫn tiếp tục app/job hiện có.
+- Upload dùng đúng endpoint cùng origin, chặn redirect, không tự set multipart Content-Type, kiểm thêm max_bytes backend; error sau create giữ app_id để không tạo trùng.
+- Prompt, llms, agent guide và README theo luồng AI làm 99%; duyệt chi phí một lần, trả URL, domain+CNAME, MONA Pass/device flow và nạp ví khi hết credit 20k.
+- Package/binary/MCP handshake 0.4.0; 135 tool, 2 resource, 2 prompt. Không đổi dependency, không publish, không gọi API production.
+
+## Gate bàn giao
+
+```text
+mcp: npm test → 47 tests, 47 pass, 0 fail, 0 skip (gồm TypeScript build)
+cli: npm test → 36 tests, 36 pass, 0 fail, 0 skip
+```
+
+Test gồm ZIP/CRC/binary/UTF-8/executable bits/ignore/secrets, archive vượt 80 MiB trước HTTP, mock multipart round-trip với native Request/FormData, backend max_bytes/URL không hợp lệ, sandbox/estimate, upload/build lỗi, wait=false/timeout, source mismatch/redeploy và CLI executable → MCP thật → HTTP mock. Test launcher đặt NODE_USE_SYSTEM_CA=0 riêng cho test child vì Node 22 thừa kế biến 1 bị SIGSEGV khi đọc macOS Keychain trong sandbox; runtime sản phẩm không đổi cấu hình CA.
+
+Chi tiết hợp đồng và giới hạn: [docs/local-deploy.md](docs/local-deploy.md). Chỉ kiểm chứng offline/mock theo brief; backend upload đang được triển khai song song, chưa kiểm thử production.
+
+CODEX DONE
+
+---
+
+# Lịch sử — monacloud-mcp 0.3.0
 
 Updated: 2026-09-05 (Asia/Ho_Chi_Minh)
 

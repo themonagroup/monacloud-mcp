@@ -82,8 +82,23 @@ export class CloudClients {
     }
   }
 
-  balance() {
-    return this.billing('/v1/balance');
+  async balance(): Promise<unknown> {
+    try {
+      return await this.billing('/v1/balance');
+    } catch (error) {
+      // Ví local (token vc_live_* hoặc tài khoản chưa chuyển ví chung): billing trả 401/403/404 → đọc số dư qua compute /api/me.
+      const status = error instanceof CloudError ? error.status ?? 0 : 0;
+      if (!(error instanceof CloudError) || ![401, 403, 404, 502, 503].includes(status)) throw error;
+      const me = asObject(unwrapData(await this.vibecloud('/api/me')));
+      const balanceVnd = Number(me.balance_vnd ?? 0) + Number(me.promo_credit_vnd ?? 0);
+      return {
+        balance_vnd: Number.isFinite(balanceVnd) ? balanceVnd : 0,
+        currency: 'VND',
+        wallet: 'local',
+        source: '/api/me',
+        note: 'Số dư ví local MONA Cloud compute (billing.monacloud.vn không nhận token này). Nạp tại console → ví. / Local compute wallet balance.',
+      };
+    }
   }
 
   ledger(cursor?: string, limit = 50) {

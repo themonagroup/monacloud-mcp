@@ -124,7 +124,7 @@ export class TemplateCatalog {
       ...template,
       source: 'built-in-wave-1-catalog',
       status: 'catalog_only',
-      next_step: 'Catalog runtime chưa được phát hành. Deploy repo git: dùng cloud_app_host_list rồi cloud_app_create (đã live), sandbox trước nếu chưa có app host; báo ước tính và hỏi duyệt trước khi tạo thật.',
+      next_step: 'Catalog runtime chưa được phát hành. Deploy dự án: cloud_app_detect(local_dir), cloud_app_host_list rồi cloud_app_create(local_dir); git dùng repo_url (đã live), sandbox trước nếu chưa có app host; báo ước tính và hỏi duyệt trước khi tạo thật.',
     };
   }
 }

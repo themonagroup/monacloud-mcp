@@ -57,7 +57,9 @@ export function apiError(response: Response, body: unknown): CloudError {
   return new CloudError(
     code,
     rawMessage,
-    response.status >= 500
+    code === 'upload_required'
+      ? 'Gọi cloud_app_deploy với app_id hiện có và local_dir để upload source; không tạo app mới.'
+      : response.status >= 500
       ? 'Kiểm tra monacloud://status rồi thử lại.'
       : 'Kiểm tra tham số theo mô tả tool rồi gọi lại.',
     { status: response.status, details: body, requestId },
@@ -74,13 +76,15 @@ export async function requestJson<T = unknown>(url: string, options: HttpOptions
     ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
     ...options.headers,
   };
-  if (options.body !== undefined) headers['Content-Type'] = 'application/json';
+  const multipart = options.body instanceof FormData;
+  if (options.body !== undefined && !multipart) headers['Content-Type'] = 'application/json';
   let response: Response;
   try {
     response = await (options.fetchImpl || fetch)(parsedUrl, {
       method: options.method || 'GET',
       headers,
-      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      body: multipart ? options.body as FormData : options.body === undefined ? undefined : JSON.stringify(options.body),
+      ...(multipart ? { redirect: 'error' as const } : {}),
       ...(options.timeoutMs ? { signal: AbortSignal.timeout(options.timeoutMs) } : {}),
     });
   } catch (error) {

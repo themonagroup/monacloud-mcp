@@ -1,5 +1,7 @@
 # Wave A/B — gói tháng, hoá đơn và app từ git (0.3.0)
 
+Bổ sung 0.4.0: [deploy từ thư mục local và cloud_app_detect](local-deploy.md). Các mặc định repo/branch dưới đây áp dụng cho nguồn git.
+
 Luồng mặc định: **đọc → ước tính VND → hỏi duyệt nếu chưa được duyệt → làm → kiểm kết quả**. Các tool dưới đây đều có alias `vibecloud_` cùng hậu tố, schema và hành vi; riêng alias VPS cũ vẫn là `vibecloud_create_vps`.
 
 ## Bảng tool

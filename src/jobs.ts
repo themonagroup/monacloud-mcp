@@ -31,7 +31,7 @@ export async function pollJob(
 }
 
 export async function finishAppJob(clients: CloudClients, created: unknown, sandbox: boolean,
-  wait: boolean, interval: number, timeout: number) {
+  wait: boolean, interval: number, timeout: number): Promise<Record<string, unknown>> {
   const start = object(unwrapData(created));
   const jobId = typeof start.job_id === 'string' ? start.job_id
     : !start.url && typeof start.id === 'string' ? start.id : undefined;
@@ -46,6 +46,8 @@ export async function finishAppJob(clients: CloudClients, created: unknown, sand
     ...(result.estimated_app_host ? { estimate: result.estimated_app_host } : {}),
     ...(typeof result.app_id === 'string' ? { app_id: result.app_id } : {}),
     ...(typeof result.url === 'string' ? { url: result.url } : {}),
+    ...(result.build !== undefined ? { build: result.build } : {}),
+    ...(typeof result.seconds === 'number' ? { seconds: result.seconds } : {}),
     ...(typeof result.application_id === 'string' ? { application_id: result.application_id } : {}),
     ...(sandbox ? { sandbox: true } : {}) };
 }

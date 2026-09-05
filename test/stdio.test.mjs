@@ -22,8 +22,8 @@ test('stdio JSON-RPC tools/list và cloud_whoami chạy bằng token giả', asy
   );
   assert.match(stdout, /STDIO PASS/);
   const summary = JSON.parse(stdout.trim().slice('STDIO PASS '.length));
-  assert.equal(summary.tools_count, 83 + 20 + 30, '0.3.0 thêm Mail và Wave A/B kèm alias');
-  assert.equal(summary.version, '0.3.0');
+  assert.equal(summary.tools_count, 83 + 20 + 32, '0.4.0 thêm Mail và Wave A/B kèm alias');
+  assert.equal(summary.version, '0.4.0');
   assert.deepEqual(summary.mail_tools, [
     'mail_account', 'mail_plans', 'mail_plan_set', 'mail_send', 'mail_status', 'mail_list',
     'mail_domain_add', 'mail_domain_verify', 'mail_domain_cloudflare', 'mail_domains_list',

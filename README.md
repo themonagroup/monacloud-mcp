@@ -4,6 +4,29 @@
 
 Human đăng ký, duyệt chi phí, thêm DNS khi cần, nạp tiền và cung cấp OTP/KYC khi bắt buộc. Các bước tạo tài nguyên, đọc trạng thái, cấu hình webhook, test và deploy được thiết kế để AI agent làm qua MCP.
 
+## 0.4.0 — Đưa thư mục hiện tại lên web
+
+Prompt Claude Code: **“Đưa dự án này lên MONA Cloud, dùng thư mục hiện tại”**.
+
+AI làm 99%: `cloud_app_detect(local_dir)` offline → đọc host và giá → sandbox nếu cần host mới → hỏi duyệt chi phí một lần → `cloud_app_create(local_dir)` → kiểm và trả URL. Có domain riêng thì `cloud_app_domain_add` và hướng dẫn CNAME. Human đăng ký MONA Pass qua device flow và nạp ví khi hết credit 20k.
+
+| Tool | Đầu vào / hành vi 0.4.0 |
+|---|---|
+| `cloud_app_detect` | `local_dir`: stack, port, start, Dockerfile, build_type, tên env từ `.env.example`; không mạng |
+| `cloud_app_create` | `local_dir`, `name?`, `build_type?`, `env?`, `port?`, `domain?`: ZIP → tạo source=upload → multipart → poll → `{url, app_id, build, seconds}` |
+| `cloud_app_deploy` | `app_id`, `local_dir?`: có thư mục thì ZIP mới, upload, chờ rồi deploy; bỏ thư mục để dùng bản cũ |
+| `cloud_app_domain_add` | `app_id`, `host`: gắn domain và nhận hướng dẫn CNAME |
+
+```text
+cloud_app_detect({ local_dir: "/absolute/path/to/project" })
+cloud_app_create({ local_dir: "/absolute/path/to/project", name: "shop", sandbox: true })
+// Sau khi đã duyệt chi phí
+cloud_app_create({ local_dir: "/absolute/path/to/project", name: "shop" })
+cloud_app_deploy({ app_id: "<app_id>", local_dir: "/absolute/path/to/project" })
+```
+
+ZIP tối đa 80 MiB, loại `.env*`, `*.pem`, `.git`, `node_modules` và symlink; áp dụng `.gitignore`/`.dockerignore`. `dist` được giữ mặc định. Git vẫn dùng `repo_url` như trước. [Hợp đồng upload, giới hạn và cách tiếp tục job](docs/local-deploy.md).
+
 ## Yêu cầu
 
 - Node.js 20 trở lên.
@@ -160,7 +183,7 @@ cloud_services_list({ sandbox: true })
 
 - `monacloud://llms`: mô tả máy đọc của toàn stack MONA Cloud.
 - `monacloud://status`: health tổng hợp MONA Pass, Billing, compute MONA Cloud, MONA Pay và MONA Mail (`/v1/healthz`).
-- Prompt `dung-app-ban-hang-monacloud`: chuỗi VPS → database → VA/QR → webhook → deploy, đọc giá, duyệt chi phí rồi tạo; repo git dùng `cloud_app_create` (đang mở).
+- Prompt `dung-app-ban-hang-monacloud`: chuỗi VPS → database → VA/QR → webhook → deploy, đọc giá, duyệt chi phí rồi tạo; dự án local dùng `cloud_app_detect` rồi `cloud_app_create(local_dir)`; git dùng `repo_url`.
 - Prompt `gui-mail-otp-monamail(app_name?, framework?, domain?)`: account → thử onboarding → domain/DNS → verify → API key → `.env` → SDK OTP → webhook bounced; chỉ dừng ở bước thêm DNS hoặc nạp tiền.
 
 ## Spend guard và lỗi cho AI
@@ -251,7 +274,7 @@ Test dùng Node built-in, MCP transport thật qua stdio, process con và mock H
 | `cloud_app_domain_add` / `cloud_app_logs` / `cloud_app_delete` | CNAME domain, log build, xoá app; **đang mở** |
 | `cloud_app_host_list` | Xem host và tài nguyên/chi phí; **đang mở** |
 
-15 tool mới có 15 alias `vibecloud_` tương ứng. Tổng với MONA Pay 0.5.5 đang có: **133 tool**, gồm 20 Mail và 26 alias compute. Package/MCP binary version: **0.3.0**.
+15 tool mới có 15 alias `vibecloud_` tương ứng. Tổng với MONA Pay 0.5.5 đang có: **135 tool** ở 0.4.0, gồm 20 Mail và 27 alias compute (thêm cloud_app_detect/vibecloud_app_detect). Package/MCP binary version: **0.4.0**.
 
 ```text
 cloud_plan_list({ ram_gb: 4 })

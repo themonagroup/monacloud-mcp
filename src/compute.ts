@@ -4,9 +4,11 @@ import type { CloudClients } from './clients.js';
 import { CloudError, runTool } from './errors.js';
 import { unwrapData } from './http.js';
 import { finishAppJob } from './jobs.js';
+import { detectProject } from './local.js';
+import { localAppTools } from './local-app.js';
 
 type Row = Record<string, unknown>;
-export const APP_FLOW = 'Khi user nói "deploy repo", dùng cloud_app_create (app từ git đã live: repo public → URL https). Đọc cloud_app_host_list, cloud_prices/cloud_packages và cloud_balance; nếu chưa có app host thì cloud_app_create sandbox=true trước để lấy ước tính. Đọc → ước tính VND → hỏi duyệt nếu chưa được duyệt → làm thật → poll tới done/succeeded → kiểm URL. Không gọi agent_deploy cho repo git. / Deploy a repository with cloud_app_create; inspect, estimate, obtain approval, then deploy.';
+export const APP_FLOW = 'AI làm 99%: cloud_app_detect(local_dir) offline → cloud_app_host_list, cloud_prices/cloud_packages/cloud_plan_list và cloud_balance → cloud_app_create(local_dir, sandbox=true) nếu chưa có app host để ước tính chi phí giờ/gói → hỏi human một lần duyệt chi phí nếu chưa được duyệt → cloud_app_create(local_dir, sandbox=false) → poll tới done/succeeded → kiểm và trả URL. Nếu human có domain: cloud_app_domain_add và hướng dẫn CNAME từ API. Human đăng ký MONA Pass bằng device flow, nạp tiền khi hết credit 20k; AI làm các bước còn lại. App git cloud_app_create(repo_url) đã live; không gọi agent_deploy cho deploy dự án. / Detect locally, estimate, obtain cost approval once, upload and deploy, return URL, then attach an optional domain.';
 const sandbox = z.boolean().optional().describe('Thử 0đ, không tạo hạ tầng thật / Sandbox, no charge');
 const id = z.string().trim().min(1).max(255);
 const planCode = z.string().trim().min(2).max(64);
@@ -90,16 +92,26 @@ export function registerComputeTools(server: McpServer, clients: CloudClients) {
     const result = await clients.vibecloud(path, { ...options, ...(isSandbox ? { headers: { 'X-Vibecloud-Sandbox': '1' } } : {}) });
     return isSandbox ? { ...(Array.isArray(result) ? { items: result } : object(result)), sandbox: true } : result;
   };
+  const localDir = z.string().min(1).max(4096).refine((value) => value.trim().length > 0 && !/[\x00-\x1f]/.test(value), 'local_dir không hợp lệ.');
+  const local = localAppTools(clients);
+  register('cloud_app_detect', 'Nhận diện Node/Next/Vite/Python/PHP/static, port, start, Dockerfile, build_type và tên biến .env.example; hoàn toàn offline, không thực thi code dự án. / Detect a local app without network.',
+    z.object({ local_dir: localDir }).strict(), ({ local_dir }) => detectProject(local_dir));
   register('cloud_app_create', appNotice + APP_FLOW,
-    z.object({ repo_url: repo, branch: gitPath.default('main'), build_type: z.enum(['dockerfile', 'nixpacks', 'static']).default('dockerfile'), dockerfile: gitPath.default('Dockerfile'), env: env.default({}), domain: domain.optional(), app_host_id: id.optional(), port: z.number().int().min(1).max(65535).default(3000), sandbox, ...poll }).strict(),
-    async ({ sandbox: requested, wait, interval_sec, timeout_sec, ...body }) => finishAppJob(clients,
-      await clients.guardedVibecloud('/api/apps', { method: 'POST', body }, requested), clients.sandboxEnabled(requested), wait, interval_sec, timeout_sec));
+    z.object({ local_dir: localDir.optional(), name: z.string().trim().min(1).max(80).optional(), repo_url: repo.optional(), branch: gitPath.optional(), build_type: z.enum(['dockerfile', 'nixpacks', 'static']).optional(), dockerfile: gitPath.optional(), env: env.default({}), domain: domain.optional(), app_host_id: id.optional(), port: z.number().int().min(1).max(65535).optional(), sandbox, ...poll }).strict()
+      .refine((args) => Boolean(args.local_dir) !== Boolean(args.repo_url), 'Chọn đúng một local_dir hoặc repo_url.')
+      .refine((args) => !args.local_dir || (!args.branch && !args.app_host_id && (!args.dockerfile || args.dockerfile === 'Dockerfile')), 'Upload local dùng Dockerfile ở root; branch/app_host_id chỉ dùng cho git.'),
+    async (args) => {
+      if (args.local_dir) return local.create(args);
+      const { sandbox: requested, wait, interval_sec, timeout_sec, local_dir, name, ...fields } = args;
+      const body = { ...fields, branch: fields.branch || 'main', build_type: fields.build_type || 'dockerfile', dockerfile: fields.dockerfile || 'Dockerfile', port: fields.port || 3000 };
+      return finishAppJob(clients, await clients.guardedVibecloud('/api/apps', { method: 'POST', body }, requested), clients.sandboxEnabled(requested), wait, interval_sec, timeout_sec);
+    });
   register('cloud_app_list', appNotice + 'Liệt kê app trước khi tạo để tránh trùng. / List apps.', z.object({ sandbox }).strict(), ({ sandbox }) => compute('/api/apps', {}, sandbox));
   register('cloud_app_host_list', appNotice + 'Đọc app host; chưa có host thì sandbox cloud_app_create trước để ước tính. / List app hosts.', z.object({ sandbox }).strict(), ({ sandbox }) => compute('/api/app-hosts', {}, sandbox));
   register('cloud_app_get', appNotice + 'Đọc status, URL, lần deploy và app host. / Inspect app.', appId, ({ app_id, sandbox }) => compute(`/api/apps/${encodeURIComponent(app_id)}`, {}, sandbox));
-  register('cloud_app_deploy', appNotice + 'Deploy lại sau khi đọc app/log và được duyệt; poll job tới kết quả. / Redeploy and poll.', appId.extend(poll),
-    async ({ app_id, sandbox, wait, interval_sec, timeout_sec }) => finishAppJob(clients,
-      await clients.guardedVibecloud(`/api/apps/${encodeURIComponent(app_id)}/deploy`, { method: 'POST' }, sandbox), clients.sandboxEnabled(sandbox), wait, interval_sec, timeout_sec));
+  register('cloud_app_deploy', appNotice + 'App upload: local_dir đóng ZIP mới → upload → chờ job → deploy; bỏ local_dir để redeploy bản đã upload. / Redeploy uploaded source or a git app and poll.', appId.extend({ local_dir: localDir.optional(), ...poll }),
+    async (args) => args.local_dir ? local.deploy(args) : finishAppJob(clients,
+      await clients.guardedVibecloud(`/api/apps/${encodeURIComponent(args.app_id)}/deploy`, { method: 'POST' }, args.sandbox), clients.sandboxEnabled(args.sandbox), args.wait, args.interval_sec, args.timeout_sec));
   register('cloud_app_env_set', appNotice + 'Thay toàn bộ env sau khi được duyệt, gửi đầy đủ map cần giữ; không log secret. Gọi cloud_app_deploy sau đó để áp dụng. / Set app environment.', appId.extend({ env }), ({ app_id, env, sandbox }) => compute(`/api/apps/${encodeURIComponent(app_id)}/env`, { method: 'PUT', body: { env } }, sandbox));
   register('cloud_app_domain_add', appNotice + 'Thêm domain đã được duyệt, trả hướng dẫn CNAME từ API; chờ DNS trước kiểm HTTPS. / Attach custom domain.', appId.extend({ host: domain }), ({ app_id, host, sandbox }) => compute(`/api/apps/${encodeURIComponent(app_id)}/domains`, { method: 'POST', body: { host } }, sandbox));
   register('cloud_app_logs', appNotice + 'Đọc tối đa 500 dòng log; có thể chứa secret, không đưa nguyên log ra công khai. / Read deployment logs.', appId.extend({ deployment: id.optional() }), ({ app_id, deployment, sandbox }) => compute(`/api/apps/${encodeURIComponent(app_id)}/logs`, { query: { deployment } }, sandbox));

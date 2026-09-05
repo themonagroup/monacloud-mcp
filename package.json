@@ -1,6 +1,6 @@
 {
   "name": "monacloud-mcp",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "Unified MCP server for MONA Cloud, MONA Pay and MONA Agent.",
   "license": "MIT",
   "type": "module",
@@ -18,7 +18,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "npm run build && node --test test/*.test.mjs",
+    "test": "npm run build && node support/test.mjs",
     "start": "node dist/index.js"
   },
   "engines": {
