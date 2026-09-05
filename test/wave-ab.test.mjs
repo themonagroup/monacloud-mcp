@@ -43,7 +43,7 @@ test('plans expose both prices, recommend by resources, and all 15 new tools hav
       assert.deepEqual(current.inputSchema, alias.inputSchema);
       assert.equal(current.inputSchema.additionalProperties, false);
       assert.match(current.description, /\/ /);
-      if (name.startsWith('app_')) assert.match(current.description, /đang mở/);
+      if (name.startsWith('app_')) assert.match(current.description, /đã live|live/);
     }
   });
 });
@@ -233,7 +233,7 @@ test('invalid Wave A/B inputs never reach HTTP; prompts and agent stubs route de
     ]) assert.equal((await call(client, name, args)).isError, true, name);
     assert.equal(calls.length, 0);
     const resource = await client.readResource({ uri: 'monacloud://llms' });
-    assert.match(resource.contents[0].text, /cloud_app_create.*đang mở/);
+    assert.match(resource.contents[0].text, /cloud_app_create.*đã live/);
     const prompt = await client.getPrompt({ name: 'dung-app-ban-hang-monacloud', arguments: {} });
     assert.match(prompt.messages[0].content.text, /cloud_app_host_list.*cloud_app_create/);
     assert.match(data(await call(client, 'agent_deploy', { template: 'sales-chot-don' })).next_step, /cloud_app_create/);

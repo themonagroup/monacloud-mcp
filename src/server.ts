@@ -367,7 +367,7 @@ export function createServer(dependencies: ServerDependencies = {}): McpServer {
 
   server.registerTool('agent_deploy', {
     title: 'Dùng ngay MONA Agent template',
-    description: 'Gọi cùng runtime với cloud_agent_deploy. Với deploy repo git, dùng cloud_app_create (đang mở), sandbox trước nếu chưa có host.',
+    description: 'Gọi cùng runtime với cloud_agent_deploy. Với deploy repo git, dùng cloud_app_create (đã live), sandbox trước nếu chưa có host.',
     inputSchema: { template: z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/) },
   }, ({ template }) => runTool(() => agentRuntimeStub(template)));
 
