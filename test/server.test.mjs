@@ -40,6 +40,303 @@ async function withClient(fetchImpl, env, callback) {
   }
 }
 
+const mailEnv = {
+  MONACLOUD_TOKEN: 'fake-mail-mona-pass',
+  MONAMAIL_API: 'https://mail.test/',
+};
+const mailBody = {
+  from: 'Shop <noreply@shop.test>',
+  to: ['owner@example.test', 'Khách <customer@example.test>'],
+  subject: 'Mã OTP',
+  html: '<b>123456</b>',
+  text: '123456',
+  reply_to: 'support@shop.test',
+  tags: ['otp', 'transactional'],
+  unsubscribe_url: 'https://shop.test/unsubscribe',
+};
+
+test('MONAMAIL_API có mặc định và bỏ dấu / cuối URL', () => {
+  assert.equal(readConfig({}).monamailApi, 'https://api.monamail.vn');
+  assert.equal(readConfig(mailEnv).monamailApi, 'https://mail.test');
+});
+
+test('mail_send gửi MONA Pass, idempotency, body và sandbox header qua MCP', async () => {
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    assert.equal(String(url), 'https://mail.test/v1/emails');
+    calls.push(init);
+    return response({ id: 'email-1', status: 'queued', deliveries: [] }, 201);
+  };
+  await withClient(fetchImpl, mailEnv, async (client) => {
+    const live = parsedText(await client.callTool({
+      name: 'mail_send', arguments: { ...mailBody, idempotency_key: 'otp-request-1' },
+    }));
+    assert.equal(live.id, 'email-1');
+    assert.equal(live.sandbox, undefined);
+    const sandbox = parsedText(await client.callTool({
+      name: 'mail_send', arguments: { ...mailBody, sandbox: true },
+    }));
+    assert.equal(sandbox.sandbox, true, 'MCP đánh dấu sandbox dù response API chưa có');
+  });
+  assert.equal(calls.length, 2, 'Mail không gọi Billing hoặc adapter token');
+  for (const call of calls) {
+    assert.equal(call.method, 'POST');
+    assert.equal(call.headers.Authorization, 'Bearer fake-mail-mona-pass');
+    assert.equal(call.headers['Content-Type'], 'application/json');
+    assert.deepEqual(JSON.parse(call.body), mailBody);
+  }
+  assert.equal(calls[0].headers['Idempotency-Key'], 'otp-request-1');
+  assert.equal(calls[0].headers['X-Mona-Sandbox'], undefined);
+  assert.match(calls[1].headers['Idempotency-Key'], /^mcp-mail-[0-9a-f-]{36}$/);
+  assert.equal(calls[1].headers['X-Mona-Sandbox'], '1');
+});
+
+test('mail_domain_add trả records DNS, chuẩn hoá IDN và chuyển token CF một lần', async () => {
+  const records = [
+    { type: 'TXT', name: 'mona1._domainkey.shop.test', value: 'v=DKIM1; k=rsa; p=public-fixture', purpose: 'dkim', required: true },
+    { type: 'TXT', name: 'shop.test', value: 'v=spf1 include:_spf.monamail.vn ~all', purpose: 'spf', required: false },
+    { type: 'TXT', name: '_dmarc.shop.test', value: 'v=DMARC1; p=none', purpose: 'dmarc', required: false },
+  ];
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    calls.push({ url: String(url), init });
+    return response(String(url).endsWith('/cloudflare')
+      ? { added: records, status: 'verified' }
+      : { id: 'domain/1', domain: JSON.parse(init.body).domain, status: 'pending', records }, 201);
+  };
+  await withClient(fetchImpl, mailEnv, async (client) => {
+    const added = parsedText(await client.callTool({
+      name: 'mail_domain_add', arguments: { domain: 'SHOP.test', idempotency_key: 'domain-shop-1' },
+    }));
+    assert.deepEqual(added.records, records);
+    assert.equal(added.domain, 'shop.test');
+    assert.match(added.instructions, /mail_domain_verify/);
+    assert.match(added.instructions, /mail_domain_cloudflare/);
+    const cf = await client.callTool({
+      name: 'mail_domain_cloudflare', arguments: { domain_id: added.id, api_token: 'fake-cf-token-once' },
+    });
+    assert.equal(parsedText(cf).status, 'verified');
+    assert.doesNotMatch(cf.content[0].text, /fake-cf-token-once/);
+    const idn = parsedText(await client.callTool({ name: 'mail_domain_add', arguments: { domain: 'bücher.test' } }));
+    assert.equal(idn.domain, 'xn--bcher-kva.test');
+  });
+  assert.equal(calls[0].url, 'https://mail.test/v1/domains');
+  assert.equal(calls[0].init.headers['Idempotency-Key'], 'domain-shop-1');
+  assert.deepEqual(JSON.parse(calls[0].init.body), { domain: 'shop.test' });
+  assert.equal(calls[1].url, 'https://mail.test/v1/domains/domain%2F1/cloudflare');
+  assert.deepEqual(JSON.parse(calls[1].init.body), { api_token: 'fake-cf-token-once' });
+  for (const { init } of calls) {
+    assert.equal(init.method, 'POST');
+    assert.equal(init.headers.Authorization, 'Bearer fake-mail-mona-pass');
+    assert.ok(init.headers['Idempotency-Key']);
+  }
+  assert.notEqual(calls[1].init.headers['Idempotency-Key'], calls[2].init.headers['Idempotency-Key']);
+});
+
+test('mail_api_key_create trả secret một lần để app lưu vào .env', async () => {
+  const created = { id: 'key-1', name: 'shop', mode: 'test', key: `mm_test_${'0'.repeat(32)}`, prefix: 'mm_test_0000' };
+  let captured;
+  await withClient(async (url, init) => {
+    assert.equal(String(url), 'https://mail.test/v1/api-keys');
+    captured = init;
+    return response(created, 201);
+  }, mailEnv, async (client) => {
+    const result = parsedText(await client.callTool({
+      name: 'mail_api_key_create', arguments: { name: 'shop', mode: 'test', idempotency_key: 'key-shop-1' },
+    }));
+    assert.deepEqual(result, created);
+    const { tools } = await client.listTools();
+    const description = tools.find((tool) => tool.name === 'mail_api_key_create').description;
+    assert.match(description, /Key chỉ trả một lần; ghi vào \.env của app dưới tên MONAMAIL_API_KEY, không cần in ra chat/);
+  });
+  assert.equal(captured.method, 'POST');
+  assert.equal(captured.headers.Authorization, 'Bearer fake-mail-mona-pass');
+  assert.equal(captured.headers['Idempotency-Key'], 'key-shop-1');
+  assert.deepEqual(JSON.parse(captured.body), { name: 'shop', mode: 'test' });
+});
+
+test('mail_plan_set 402 trả insufficient_funds và next_step nhắc cloud_topup', async () => {
+  let captured;
+  await withClient(async (url, init) => {
+    assert.equal(String(url), 'https://mail.test/v1/account/plan');
+    captured = init;
+    return response({ code: 'insufficient_funds', needed_vnd: 99000, topup_hint: 'cloud_topup' }, 402, { 'X-Request-Id': 'req-mail-plan' });
+  }, mailEnv, async (client) => {
+    const result = await client.callTool({ name: 'mail_plan_set', arguments: { plan: 'khoi-nghiep' } });
+    assert.equal(result.isError, true);
+    const error = parsedText(result);
+    assert.equal(error.code, 'insufficient_funds');
+    assert.match(error.next_step, /cloud_topup/);
+    assert.equal(error.request_id, 'req-mail-plan');
+    assert.doesNotMatch(error.next_step, /\bVâng\b|—/u);
+  });
+  assert.equal(captured.method, 'PUT');
+  assert.equal(captured.headers.Authorization, 'Bearer fake-mail-mona-pass');
+  assert.deepEqual(JSON.parse(captured.body), { plan: 'khoi-nghiep' });
+});
+
+test('mail_send giữ nguyên 403 domain_not_verified cùng next_step và request_id từ API', async () => {
+  const upstream = {
+    code: 'domain_not_verified',
+    message: 'Domain gửi chưa được xác minh.',
+    next_step: 'Gọi mail_domain_add rồi mail_domain_verify, hoặc gửi onboarding@monamail.vn tới owner@example.test.',
+    request_id: 'req-domain-403',
+  };
+  await withClient(async () => response(upstream, 403), mailEnv, async (client) => {
+    const result = await client.callTool({ name: 'mail_send', arguments: mailBody });
+    assert.equal(result.isError, true);
+    assert.deepEqual(parsedText(result), upstream);
+  });
+});
+
+test('lỗi quota, budget và idempotency của Mail giữ nguyên hướng dẫn API', async () => {
+  for (const [status, code, next_step] of [
+    [402, 'quota_exceeded', 'Gọi mail_plan_set để đổi gói.'],
+    [402, 'budget_exceeded', 'Gọi cloud_budget_get rồi tăng ngân sách.'],
+    [409, 'idempotency_conflict', 'Giữ body cũ hoặc dùng key mới cho yêu cầu mới.'],
+    [429, 'rate_limited', 'Chờ 60 giây rồi thử lại cùng idempotency key.'],
+  ]) {
+    const upstream = { code, message: 'Yêu cầu chưa thực hiện được.', next_step, request_id: `req-${code}` };
+    await withClient(async () => response(upstream, status), mailEnv, async (client) => {
+      const result = await client.callTool({ name: 'mail_send', arguments: mailBody });
+      assert.equal(result.isError, true);
+      assert.deepEqual(parsedText(result), upstream);
+    });
+  }
+});
+
+test('tool Mail ánh xạ đúng GET, POST, DELETE, query và body theo contract', async () => {
+  const routes = [
+    ['mail_account', {}, 'GET', '/v1/account'],
+    ['mail_plans', {}, 'GET', '/v1/plans'],
+    ['mail_status', { email_id: 'email/1' }, 'GET', '/v1/emails/email%2F1'],
+    ['mail_list', { limit: 100, status: 'bounced', to: 'user+otp@example.test', since: '2026-09-01T00:00:00+07:00' }, 'GET', '/v1/emails?limit=100&status=bounced&to=user%2Botp%40example.test&since=2026-09-01T00%3A00%3A00%2B07%3A00'],
+    ['mail_domain_verify', { domain_id: 'domain/1' }, 'POST', '/v1/domains/domain%2F1/verify'],
+    ['mail_domains_list', {}, 'GET', '/v1/domains'],
+    ['mail_api_keys_list', {}, 'GET', '/v1/api-keys'],
+    ['mail_api_key_revoke', { key_id: 'key/1' }, 'DELETE', '/v1/api-keys/key%2F1'],
+    ['mail_webhook_create', { url: 'https://shop.test/mail/events', events: ['email.bounced'] }, 'POST', '/v1/webhooks', { url: 'https://shop.test/mail/events', events: ['email.bounced'] }],
+    ['mail_webhooks_list', {}, 'GET', '/v1/webhooks'],
+    ['mail_webhook_test', { webhook_id: 'hook/1' }, 'POST', '/v1/webhooks/hook%2F1/test'],
+    ['mail_suppressions_list', {}, 'GET', '/v1/suppressions'],
+    ['mail_suppression_remove', { email: 'user+otp@example.test' }, 'DELETE', '/v1/suppressions/user%2Botp%40example.test'],
+    ['mail_template_create', { name: 'otp', subject: 'Mã {{otp}}', html: '<b>{{otp}}</b>', text: '{{otp}}' }, 'POST', '/v1/templates', { name: 'otp', subject: 'Mã {{otp}}', html: '<b>{{otp}}</b>', text: '{{otp}}' }],
+    ['mail_stats', { from: '2026-09-01', to: '2026-09-05' }, 'GET', '/v1/stats?from=2026-09-01&to=2026-09-05'],
+    ['mail_stats', {}, 'GET', '/v1/stats'],
+  ];
+  let expected;
+  const captured = [];
+  await withClient(async (url, init) => {
+    const [, , method, path, body] = expected;
+    assert.equal(String(url), `https://mail.test${path}`);
+    assert.equal(init.method, method);
+    assert.equal(init.headers.Authorization, 'Bearer fake-mail-mona-pass');
+    assert.deepEqual(init.body === undefined ? undefined : JSON.parse(init.body), body);
+    if (method === 'POST') {
+      captured.push(init.headers['Idempotency-Key']);
+      if (expected[1].idempotency_key) assert.equal(init.headers['Idempotency-Key'], expected[1].idempotency_key);
+      else assert.match(init.headers['Idempotency-Key'], /^mcp-mail-[0-9a-f-]{36}$/);
+    } else assert.equal(init.headers['Idempotency-Key'], undefined);
+    return method === 'DELETE'
+      ? { ok: true, status: 204, headers: { get: () => null }, text: async () => '' }
+      : response({ ok: true });
+  }, mailEnv, async (client) => {
+    for (const route of routes) {
+      expected = route;
+      const result = await client.callTool({ name: route[0], arguments: route[1] });
+      assert.equal(result.isError, undefined, route[0]);
+      assert.deepEqual(parsedText(result), route[2] === 'DELETE' ? {} : { ok: true });
+      if (route[2] === 'POST') {
+        expected = [route[0], { ...route[1], idempotency_key: `retry-${route[0]}` }, ...route.slice(2)];
+        const retry = await client.callTool({ name: expected[0], arguments: expected[1] });
+        assert.equal(retry.isError, undefined, route[0]);
+      }
+    }
+  });
+  assert.equal(new Set(captured).size, captured.length);
+});
+
+test('schema Mail chặn dữ liệu sai trước fetch và nhận template hoặc 50 người nhận', async () => {
+  let fetches = 0;
+  await withClient(async () => { fetches += 1; return response({ id: 'valid' }, 201); }, mailEnv, async (client) => {
+    const invalid = [
+      ['mail_send', { ...mailBody, to: 'invalid-email' }],
+      ['mail_send', { ...mailBody, from: 'Shop <bad@example.test' }],
+      ['mail_send', { ...mailBody, to: [] }],
+      ['mail_send', { ...mailBody, to: Array(51).fill('a@example.test') }],
+      ['mail_send', { ...mailBody, tags: Array(11).fill('otp') }],
+      ['mail_send', { ...mailBody, tags: ['bad tag'] }],
+      ['mail_send', { ...mailBody, subject: 'a'.repeat(999) }],
+      ['mail_send', { from: mailBody.from, to: mailBody.to, subject: 'Missing content' }],
+      ['mail_send', { from: mailBody.from, to: mailBody.to, text: 'Missing subject' }],
+      ['mail_send', { ...mailBody, idempotency_key: 'bad\nheader' }],
+      ['mail_send', { ...mailBody, sandbox: 'true' }],
+      ['mail_send', { ...mailBody, unknown: true }],
+      ['mail_domain_add', { domain: 'https://shop.test' }],
+      ['mail_domain_add', { domain: 'sub.monamail.vn' }],
+      ['mail_plan_set', { plan: 'premium' }],
+      ['mail_api_key_create', { name: 'shop', mode: 'sandbox' }],
+      ['mail_webhook_create', { url: 'http://shop.test/hooks', events: ['email.bounced'] }],
+      ['mail_webhook_create', { url: 'https://shop.test/hooks', events: ['email.opened'] }],
+      ['mail_webhook_create', { url: 'https://shop.test/hooks', events: [] }],
+      ['mail_list', { limit: 101 }],
+      ['mail_list', { since: '2026-02-30' }],
+      ['mail_stats', { from: '2026-09-05', to: '2026-09-01' }],
+    ];
+    for (const [name, args] of invalid) {
+      const result = await client.callTool({ name, arguments: args });
+      assert.equal(result.isError, true, `${name} phải từ chối input sai`);
+    }
+    assert.equal(fetches, 0);
+    const valid = [
+      { ...mailBody, to: Array(50).fill('a@example.test'), tags: Array(10).fill('otp'), subject: 'a'.repeat(998) },
+      { from: mailBody.from, to: 'a@example.test', template_id: 'tpl-1', variables: { otp: '123456' } },
+      { from: mailBody.from, to: 'a@example.test', subject: 'OTP', text: '123456' },
+    ];
+    for (const args of valid) {
+      const result = await client.callTool({ name: 'mail_send', arguments: args });
+      assert.equal(result.isError, undefined);
+    }
+    assert.equal(fetches, valid.length);
+  });
+});
+
+test('Mail xuất hiện trong instructions, llms, health và prompt OTP zero-dashboard', async () => {
+  const calls = [];
+  await withClient(async (url, init) => {
+    calls.push(String(url));
+    assert.equal(init.headers.Authorization, undefined, 'Health là public');
+    return response({ status: 'ok' });
+  }, mailEnv, async (client) => {
+    assert.equal(client.getServerVersion().version, '0.3.0');
+    assert.match(client.getInstructions(), /mail_\* để gửi email giao dịch \(MONA Mail\)/);
+    const llms = await client.readResource({ uri: 'monacloud://llms' });
+    assert.match(llms.contents[0].text, /- mail_\*: tài khoản, domain, API key, gửi mail, trạng thái, webhook, suppression \(MONA Mail https:\/\/monamail.vn, API https:\/\/api.monamail.vn\)/);
+    const health = JSON.parse((await client.readResource({ uri: 'monacloud://status' })).contents[0].text);
+    assert.equal(health.members.length, 5);
+    assert.equal(health.members.find((member) => member.name === 'monamail').ok, true);
+    assert.ok(calls.includes('https://mail.test/v1/healthz'));
+    const listed = await client.listTools();
+    const mail = listed.tools.filter((tool) => tool.name.startsWith('mail_'));
+    assert.equal(mail.length, 20);
+    for (const tool of mail) {
+      assert.match(tool.description, /Khi .*\/ Use/i);
+      assert.equal(tool.inputSchema.additionalProperties, false);
+    }
+    const prompt = await client.getPrompt({ name: 'gui-mail-otp-monamail', arguments: { app_name: 'Shop OTP', framework: 'Next.js', domain: 'shop.test' } });
+    const text = prompt.messages[0].content.text;
+    let previous = -1;
+    for (const step of ['mail_account', 'onboarding@monamail.vn', 'mail_domain_add', 'mail_domain_cloudflare', 'mail_domain_verify', 'mail_api_key_create', 'MONAMAIL_API_KEY', "from 'monamail'", 'mail_webhook_create']) {
+      const index = text.indexOf(step, previous + 1);
+      assert.ok(index > previous, `${step} đúng thứ tự`);
+      previous = index;
+    }
+    for (const term of ['Shop OTP', 'Next.js', 'shop.test', 'email.bounced', 'cloud_topup', 'thêm DNS hoặc nạp tiền']) assert.ok(text.includes(term));
+    const defaults = await client.getPrompt({ name: 'gui-mail-otp-monamail', arguments: {} });
+    assert.match(defaults.messages[0].content.text, /app của tôi/);
+  });
+});
+
 test('MONA Cloud provision luôn đọc ví trước rồi mới tạo VPS', async () => {
   const calls = [];
   const env = {

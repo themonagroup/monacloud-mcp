@@ -1,8 +1,76 @@
-# STATUS — monacloud-mcp 0.2.1
+# STATUS — monacloud-mcp 0.3.0
 
-Updated: 2026-09-04 (Asia/Ho_Chi_Minh)
+Updated: 2026-09-05 (Asia/Ho_Chi_Minh)
 
-## Hoàn thành
+## 0.3.0 — Wave A/B hoàn tất (05/09/2026)
+
+- [x] 6 tool billing: `cloud_plan_list`, `cloud_subscription_list`, `cloud_subscription_update`, `cloud_invoice_list`, `cloud_invoice_pdf`, `cloud_credit_redeem`.
+- [x] `cloud_vps_create`/`vibecloud_create_vps` nhận hourly/monthly, plan_code, month/year. Monthly bỏ sizing hourly; estimate và spend guard dùng đúng toàn bộ giá kỳ từ API, gồm gói 0đ.
+- [x] 9 tool app từ git: `cloud_app_create`, `cloud_app_list`, `cloud_app_get`, `cloud_app_deploy`, `cloud_app_env_set`, `cloud_app_domain_add`, `cloud_app_logs`, `cloud_app_delete`, `cloud_app_host_list`. Mô tả VI/EN ghi **đang mở**, gọi endpoint thật qua client; test HTTP mock.
+- [x] 15 alias `vibecloud_` mới, dùng chung schema/handler. Tổng stdio **133 tool = 83 cũ + 20 Mail + 30 Wave A/B**, 2 resource, 2 prompt. Giữ nguyên tích hợp Mail/MONA Pay đang có.
+- [x] App create/deploy poll tối đa 600 giây; trả URL/app_id/application_id, chuẩn hoá `result.estimated_app_host` thành `estimate`. Job error/failed/cancelled trả `app_deploy_failed`; timeout giữ job_id, không POST lại.
+- [x] Sandbox header `X-Vibecloud-Sandbox: 1`, env `MONACLOUD_SANDBOX=1`, bỏ Billing; job poll theo ID. Monthly sandbox thử cấu hình plan qua **hourly sandbox**, báo rõ chưa tạo subscription vì Wave A từ chối monthly sandbox.
+- [x] PDF giữ nguyên binary, file 0600/thư mục tạm 0700, không dùng remote filename hay follow redirect. Lỗi HTTP không tạo file giả.
+- [x] Instructions/resource, prompt dựng app, agent_* và catalog hướng “deploy repo” sang cloud_app_create; đọc → ước tính → duyệt nếu cần → làm, sandbox trước khi chưa có host.
+- [x] MCP và CLI cùng version **0.3.0**. README, [docs/wave-ab.md](docs/wave-ab.md), agent guide và CLI docs có bảng tool/lệnh, ví dụ, giới hạn rollout.
+
+Ví dụ gọi:
+
+```text
+cloud_plan_list({ ram_gb: 4 })
+cloud_vps_create({ app_name: "shop", billing_mode: "monthly", plan_code: "kinh-doanh", period: "month" })
+cloud_subscription_update({ service_id: "<id>", auto_renew: false, cancel_action: "stop" })
+cloud_invoice_pdf({ invoice_id: "<id>" })
+cloud_credit_redeem({ code: "<mã đã duyệt>" })
+cloud_app_create({ repo_url: "https://github.com/example/shop.git", build_type: "nixpacks", sandbox: true })
+```
+
+Gate cuối:
+
+```text
+mcp: npm test → 35 tests, 35 pass, 0 fail, 0 skip (bao gồm tsc)
+cli: npm test → 31 tests, 31 pass, 0 fail, 0 skip
+```
+
+CLI có test executable → MCP thật → HTTP mock cho plans, VPS monthly, PDF, sandbox, duyệt chi phí và deploy/build lỗi. Stdio xác nhận version 0.3.0, 133 tool và không có stderr chứa secret.
+
+Nguồn hợp đồng: snapshot `ctx/openapi.json` vẫn là **0.2.0**, thiếu Wave A/B. Đối chiếu offline schema/router Wave A và Wave B tại repo `vibecloud` trên cùng máy; giữ snapshot gốc và ghi provenance trong docs. Wave B public HTTPS repo, PUT env, query `deployment`, estimate `result.estimated_app_host`. CLI chuyển SSH remote phổ biến sang public HTTPS tương đương, không cấp quyền private repo.
+
+Không chạy npm install, không gọi Internet/production, không publish. Toàn bộ phát triển/test trong hai workspace và thư mục tạm. Wave B live chưa kiểm vì brief yêu cầu offline.
+
+Kiểm tra đóng gói offline: `npm pack --dry-run --json --offline --ignore-scripts` PASS (MCP 30 file), đủ source build/template/docs mới. Dùng npm CLI trực tiếp với config rỗng và `NODE_USE_SYSTEM_CA=0` để tránh lỗi Keychain/SecItemCopyMatching của Node trên runner. Không tạo tarball và không publish.
+
+CODEX DONE
+
+## 0.3.0 — MONA Mail
+
+- [x] Thêm đủ 20 tool `mail_*` theo CONTRACT-MONA-MAIL-API §5 trong `src/mail.ts`, đăng ký sau nhóm compute `cloud_*`.
+- [x] `MONAMAIL_API` mặc định `https://api.monamail.vn`; `CloudClients.mail()` dùng `requestJson` và `auth.accessToken()` MONA Pass, không có token cache Mail riêng.
+- [x] Mọi POST có `Idempotency-Key` từ `idempotency_key` hoặc `mcp-mail-<uuid>`; `mail_send` chuyển `sandbox: true` thành `X-Mona-Sandbox: 1` và đánh dấu response.
+- [x] Schema chặn email sai, trên 50 người nhận, trên 10 tags, subject trên 998 ký tự, gói/mode/event ngoài enum, webhook không dùng HTTPS và tham số lạ. Domain chuyển lowercase/IDN sang punycode.
+- [x] Tool mô tả VI/EN có tình huống sử dụng; domain trả records và hướng dẫn DNS/Cloudflare. API key chỉ trả một lần để app lưu `.env` với tên `MONAMAIL_API_KEY`; không thêm log token/key, không lưu token Cloudflare.
+- [x] Lỗi Mail qua `CloudError`: giữ thông tin API, gồm `403 domain_not_verified`; `402 mail_plan_set` trả `insufficient_funds` và bước tiếp theo nhắc `cloud_topup`. `src/http.ts`, `src/errors.ts` và hành vi lỗi tool cũ giữ nguyên.
+- [x] Instructions/entity, `monacloud://llms` và health MONA Mail `/v1/healthz` đã cập nhật. Có prompt `gui-mail-otp-monamail` với account → onboarding → DNS → verify → key → `.env` → SDK OTP → webhook bounced.
+- [x] README có bảng 20 tool, ví dụ OTP 6 bước và env Mail; `docs/ai-agent.md` có ranh giới human DNS/nạp tiền, sandbox, webhook HMAC và idempotency 24 giờ.
+- [x] Version package, MCP server và CLI đồng bộ `0.3.0`. `src/index.ts` chỉ đổi version; không sửa `src/monapay.ts`.
+
+Gate ngày 05/09/2026:
+
+```text
+$ node_modules/.bin/tsc -p tsconfig.json
+exit 0, không có diagnostic
+
+$ node --test test/*.test.mjs
+tests 23, pass 23, fail 0
+```
+
+Stdio process thật xác nhận **103 tool = 83 cũ + 20 Mail**, 2 resource, 2 prompt, server version `0.3.0`. Test bao phủ auth/header/body, sandbox, records DNS, key một lần, HTTP 402/403/409/429, GET/query/DELETE 204, schema và prompt. Test cũ về compute, MONA Pay, alias và catalog đều xanh.
+
+Lựa chọn theo contract: `subject` được bỏ khi có `template_id` vì §3 cho phép template thay nội dung; gửi trực tiếp bắt buộc subject và ít nhất html/text. Các POST ngoài `mail_send` cũng nhận `idempotency_key` tuỳ chọn để retry an toàn. Giá/quota và quyền domain vẫn do API quyết định, không hard-code giá gói.
+
+Toàn bộ thay đổi và thư mục tạm của gate nằm trong workspace MCP; thư mục tạm đã dọn sau gate. Không chạy `npm install`, không gọi Internet hoặc production; dùng dependency có sẵn và fetch mock. Chưa kiểm gửi mail thật/DNS/SMTP production vì brief yêu cầu offline.
+
+## Hoàn thành ở 0.2.1
 
 - [x] Package Node 20 + TypeScript, ESM, stdio MCP; bin `monacloud-mcp`, version `0.2.1`.
 - [x] OAuth device flow client `monacloud-mcp`, scope `offline_access`, token store private `0600`, refresh tự động; CLI `login`, `logout`, `whoami`.
@@ -56,3 +124,10 @@ CODEX DONE
 - Chưa: publish npm (`npm publish` — Claude làm khi deploy), `monapay_link`/`vibecloud_link` chờ endpoint link phía sản phẩm (gói E monapay, brief VIBECLOUD-MONAID đã có `/api/auth/monaid/link`).
 - 04/09: publish npm `monacloud-mcp` 0.1.0 rồi 0.1.1 (sửa dep monapay-mcp ^0.3.0 → ^0.5.5 vì 0.5.x không khớp ^0.3).
 - 04/09: sandbox bỏ spend guard (Codex) → publish 0.2.1; verify: cloud_vps_create sandbox:true với ví 0đ → job queued; không sandbox → insufficient_funds đúng.
+
+CODEX B DONE
+
+## QC Claude 05/09 (JOB B mail_*) — PASS local
+- tsc sạch · `node --test` 23/23 · 20 tool `mail_*` + prompt `gui-mail-otp-monamail` + health `monamail` trong `monacloud://status`.
+- Claude vá: `idempotencyHeaders` luôn gửi `Idempotency-Key` (mặc định `mcp-mail-<uuid>`) thay vì chỉ khi có tham số — AI retry an toàn theo contract §5.
+- Chưa publish npm 0.3.0: chờ `api.monamail.vn` live (deploy theo `handoff/DEPLOY-MONA-MAIL-RUNBOOK.md`) rồi zero-dashboard test prod bằng `handoff/tests/test_mail_zero_dashboard.py`.

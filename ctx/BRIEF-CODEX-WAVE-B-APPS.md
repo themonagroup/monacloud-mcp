@@ -1,0 +1,24 @@
+# BRIEF CODEX — WAVE B "app từ git" trên MONA Cloud compute (05/09/2026)
+
+> Sandbox `/Users/themon/vibecloud/` (FastAPI + Mongo; `.venv/bin/python -m pytest`, suite 227 pass). Đọc trước: `~/monacloud/docs/SPEC-WAVE-B-APP-TU-GIT.md` (kiến trúc + API), `app/jobs.py`, `app/workers.py`, `app/proxmox.py`, `app/ssh_client.py`, `app/cloudflare.py`, `app/dns_util.py`, `app/sandbox.py`, `docs/ai-agent.md`, `STATUS-WAVE-A.md`. ⛔ Offline: KHÔNG gọi mạng; Dokploy được mock trong test. ⛔ Không đụng `site/`, `sdk/`, `mui-frontend/`, `scripts/setup-server-{postgresql,mysql,mongodb}.sh`.
+
+## Hợp đồng Dokploy đã ĐO THẬT 05/09 (image dokploy/dokploy:v0.30.5) — dùng đúng
+- Auth: better-auth. Tạo admin lần đầu `POST /api/auth/sign-up/email {name,email,password}` (Origin header = base URL); đăng nhập `POST /api/auth/sign-in/email` → cookie. API key: `POST /api/auth/api-key/create {name, metadata:{organizationId}}` (organizationId lấy từ `GET /api/trpc/user.get` → `.result.data.json.organizationId`); REST dùng header `x-api-key`. **Key tạo KHÔNG có organizationId → 401 mọi endpoint.**
+- Gọi tRPC: mutation `POST /api/trpc/<proc>` body `{"json":{...}}`; query `GET /api/trpc/<proc>?input={"json":{...}}`. REST tương đương `/api/<proc>` với `x-api-key`.
+- `project.create {name,description}` → `{project:{projectId}}`; `project.all` → mỗi project có `environments[]` (`environmentId`, `isDefault`, `applications[]`).
+- `application.create {name, appName?, description, environmentId}` → `{applicationId, appName}`.
+- `application.saveGitProvider {applicationId, customGitUrl, customGitBranch, customGitBuildPath:"/", customGitSSHKeyId:null, watchPaths:[], enableSubmodules:false}` → `true`.
+- `application.saveBuildType {applicationId, buildType:"dockerfile"|"nixpacks"|"static", dockerfile:"Dockerfile", dockerContextPath:"", dockerBuildStage:"", publishDirectory:null, isStaticSpa:false, herokuVersion:null, railpackVersion:null}` → `true`.
+- `domain.create {host, path:"/", port, https:true, certificateType:"letsencrypt", applicationId, domainType:"application"}` → `{domainId}`; `domain.byApplicationId {applicationId}`.
+- `application.deploy {applicationId}` → null; poll `application.one {applicationId}` → `.applicationStatus` = `idle|running|done|error`; `deployment.all {applicationId}` → `[{status,title,errorMessage,logPath}]`.
+- `application.saveEnvironment {applicationId, env:"KEY=VAL\n..."}`; `application.update {applicationId, endpointSpecSwarm:{"Mode":"dnsrr"}}` (dự phòng khi host thiếu IPVS); `application.delete {applicationId}`; `application.stop/start`.
+- Health: `GET /api/trpc/settings.health` (không cần auth).
+
+## Việc
+1. **`app/dokploy.py`** client async (httpx) bọc các call trên; retry 3 lần; lỗi Dokploy → `DokployError(code, message)`; test bằng respx/mock.
+2. **App host**: `POST /api/app-hosts` → job tạo LXC (như VPS, template `PROXMOX_APPHOST_TEMPLATE` mặc định = `vibecloud-ubuntu-2404`) rồi SSH chạy `scripts/setup-server-apphost.sh` (viết mới: apt curl ca-certificates → `curl -sSL https://dokploy.com/install.sh | sh` → chờ `:3000` → tạo admin (email `apphost-<user>@monacloud.vn`, mật khẩu ngẫu nhiên) → API key có organizationId → in JSON `{url, api_key, admin_email, admin_password}` dòng cuối). Lưu vào `services.app_host` (api_key + password mã hoá bằng `app/security.py` fernet/pepper hiện có). `GET /api/app-hosts`. Billing = LXC bình thường (giờ/tháng theo Wave A).
+3. **Apps**: `POST /api/apps {repo_url, branch="main", build_type="dockerfile", dockerfile="Dockerfile", env{}, domain?, app_host_id?, port=3000}` → job: (a) không có app_host → tạo (nối job 2); (b) project theo user (`monacloud-<user6>`), application, git, build, env; (c) domain mặc định `<slug>-<user6>.app.monacloud.vn`: tạo A record Cloudflare (`app/cloudflare.py`, zone `monacloud.vn`, IP app host) rồi `domain.create` letsencrypt; (d) deploy + poll ≤ 10 phút; (e) result `{url, application_id, status}`. `GET /api/apps`, `GET /api/apps/{id}` (status, url, last_deploy, app_host), `POST /api/apps/{id}/deploy`, `PUT /api/apps/{id}/env`, `POST /api/apps/{id}/domains {host}` (custom: trả hướng dẫn CNAME → app host hostname + tạo domain Dokploy), `GET /api/apps/{id}/logs?deployment=` (đọc `logPath` qua SSH `tail -n 500`), `DELETE /api/apps/{id}` (xoá application + domain + A record).
+4. **Sandbox** (`X-Vibecloud-Sandbox: 1`): `POST /api/apps` trả URL giả `https://<slug>-sandbox.app.monacloud.vn`, ước tính chi phí app host nhỏ nhất.
+5. **OpenAPI + `docs/ai-agent.md`**: mục "Deploy app từ git" (3 bước + prompt mẫu + lỗi thường gặp). **MCP/CLI** làm ở brief khác — chỉ ghi vào STATUS danh sách tool cần.
+6. Test: job apps end-to-end với Dokploy mock + Proxmox mock + Cloudflare mock; lỗi build → status `error` + errorMessage; xoá sạch; sandbox.
+7. `STATUS-WAVE-B.md` (endpoint, env mới: `DOKPLOY_INSTALL_URL`, `APPS_BASE_DOMAIN=app.monacloud.vn`, `PROXMOX_APPHOST_TEMPLATE`), pytest xanh, in `CODEX DONE`.

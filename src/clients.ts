@@ -1,8 +1,11 @@
 import { randomUUID } from 'node:crypto';
+import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { Config } from './config.js';
 import { AuthManager, readLinks, writeLinks } from './auth.js';
 import { CloudError } from './errors.js';
-import { requestJson, unwrapData } from './http.js';
+import { apiError, requestJson, unwrapData } from './http.js';
 
 type JsonObject = Record<string, unknown>;
 
@@ -36,6 +39,47 @@ export class CloudClients {
       token: await this.auth.accessToken(),
       fetchImpl: this.fetchImpl,
     });
+  }
+
+  async mail<T = unknown>(
+    path: string,
+    options: { method?: string; body?: unknown; query?: Record<string, string | number | undefined>; headers?: Record<string, string> } = {},
+  ): Promise<T> {
+    try {
+      return await requestJson<T>(`${this.config.monamailApi}${path}`, {
+        ...options,
+        headers: {
+          ...(options.method === 'POST' ? { 'Idempotency-Key': `mcp-mail-${randomUUID()}` } : {}),
+          ...options.headers,
+        },
+        token: await this.auth.accessToken(),
+        fetchImpl: this.fetchImpl,
+      });
+    } catch (error) {
+      if (!(error instanceof CloudError) || !error.status) throw error;
+      // Mail keeps the API's error contract without changing legacy HTTP errors.
+      const root = asObject(error.details);
+      const objects = [root, asObject(root.detail)];
+      const code = path === '/v1/account/plan' && error.status === 402
+        ? 'insufficient_funds'
+        : pickString(objects, ['code']) || error.code;
+      const fallback = code === 'insufficient_funds'
+        ? `Gọi cloud_topup để nạp ví, chờ cloud_balance cập nhật rồi thử lại. Console: ${this.config.consoleUrl}.`
+        : code === 'quota_exceeded'
+          ? 'Gọi mail_plans rồi mail_plan_set để đổi gói trước khi gửi tiếp.'
+          : code === 'budget_exceeded'
+            ? 'Gọi cloud_budget_get và điều chỉnh ngân sách trước khi thử lại.'
+            : error.nextStep;
+      const nextStep = pickString(objects, ['next_step']) || fallback;
+      throw new CloudError(
+        code,
+        pickString(objects, ['message']) || error.message,
+        code === 'insufficient_funds' && !nextStep.includes('cloud_topup')
+          ? `${nextStep} Gọi cloud_topup để nạp ví.`
+          : nextStep,
+        { status: error.status, details: error.details, requestId: error.requestId },
+      );
+    }
   }
 
   balance() {
@@ -77,14 +121,17 @@ export class CloudClients {
     });
   }
 
-  async spendGuard(): Promise<JsonObject> {
-    const current = asObject(await this.balance());
+  async spendGuard(requiredVnd?: number): Promise<JsonObject> {
+    const current = asObject(unwrapData(await this.balance()));
     const balance = current.balance_vnd;
-    if (typeof balance === 'number' && balance <= 0) {
+    if (requiredVnd !== undefined && (typeof balance !== 'number' || !Number.isFinite(balance))) {
+      throw new CloudError('invalid_balance', 'Không đọc được số dư để duyệt giá gói.', 'Gọi cloud_balance rồi thử lại.');
+    }
+    if (typeof balance === 'number' && (requiredVnd === undefined ? balance <= 0 : balance < requiredVnd)) {
       throw new CloudError(
         'insufficient_funds',
-        'Ví thiếu tiền: số dư hiện tại là 0 đ.',
-        `Nạp ví tại ${this.config.consoleUrl} rồi gọi lại tool.`,
+        `Ví thiếu tiền: có ${balance} đ${requiredVnd === undefined ? '' : `, cần ${requiredVnd} đ`}.`,
+        `Gọi cloud_topup để nạp ví tại ${this.config.consoleUrl} rồi gọi lại tool.`,
       );
     }
     return current;
@@ -111,9 +158,11 @@ export class CloudClients {
       body?: unknown;
       query?: Record<string, string | number | undefined>;
       headers?: Record<string, string>;
+      timeoutMs?: number;
     } = {},
   ): Promise<T> {
     return requestJson<T>(`${this.config.vibecloudApi}${path}`, {
+      timeoutMs: 30_000,
       ...options,
       token: await this.vibecloudToken(),
       fetchImpl: this.fetchImpl,
@@ -124,9 +173,10 @@ export class CloudClients {
     path: string,
     options: { method?: string; body?: unknown } = {},
     requestedSandbox = false,
+    requiredVnd?: number,
   ): Promise<unknown> {
     const sandbox = this.sandboxEnabled(requestedSandbox);
-    if (!sandbox) await this.spendGuard();
+    if (!sandbox) await this.spendGuard(requiredVnd);
     const result = await this.vibecloud(path, {
       ...options,
       ...(sandbox ? { headers: { 'X-Vibecloud-Sandbox': '1' } } : {}),
@@ -210,5 +260,42 @@ export class CloudClients {
 
   packages() {
     return requestJson(`${this.config.vibecloudApi}/api/packages`, { fetchImpl: this.fetchImpl });
+  }
+
+  plans() {
+    return requestJson(`${this.config.vibecloudApi}/api/plans`, { fetchImpl: this.fetchImpl });
+  }
+
+  async invoicePdf(invoiceId: string) {
+    const token = await this.vibecloudToken();
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${this.config.vibecloudApi}/api/invoices/${encodeURIComponent(invoiceId)}.pdf`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/pdf' },
+        signal: AbortSignal.timeout(30_000),
+        redirect: 'error',
+      });
+    } catch {
+      throw new CloudError('network_error', 'Không tải được PDF hoá đơn.', 'Gọi lại cloud_invoice_pdf với cùng invoice_id.');
+    }
+    if (!response.ok) {
+      const body = await response.text();
+      let parsed: unknown;
+      try { parsed = JSON.parse(body); } catch { parsed = { message: body.slice(0, 1000) }; }
+      throw apiError(response, parsed);
+    }
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (bytes.subarray(0, 5).toString('ascii') !== '%PDF-') {
+      throw new CloudError('invalid_pdf', 'API không trả nội dung PDF hợp lệ.', 'Kiểm tra invoice_id rồi thử lại.');
+    }
+    const directory = await mkdtemp(join(tmpdir(), 'monacloud-invoice-'));
+    const path = join(directory, 'invoice.pdf');
+    try {
+      await writeFile(path, bytes, { mode: 0o600, flag: 'wx' });
+    } catch (error) {
+      await rm(directory, { recursive: true, force: true });
+      throw error;
+    }
+    return { invoice_id: invoiceId, path, mime_type: 'application/pdf', size_bytes: bytes.length };
   }
 }

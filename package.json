@@ -1,6 +1,6 @@
 {
   "name": "monacloud-mcp",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Unified MCP server for MONA Cloud, MONA Pay and MONA Agent.",
   "license": "MIT",
   "type": "module",

@@ -5,6 +5,7 @@ export type Config = {
   issuer: string;
   billingUrl: string;
   monapayApi: string;
+  monamailApi: string;
   vibecloudApi: string;
   consoleUrl: string;
   clientId: string;
@@ -27,6 +28,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): Config {
     issuer: cleanBaseUrl(env.MONACLOUD_ISSUER || 'https://pass.monacloud.vn/realms/mona'),
     billingUrl: cleanBaseUrl(env.MONACLOUD_BILLING_URL || 'https://billing.monacloud.vn'),
     monapayApi: cleanBaseUrl(env.MONAPAY_API || env.MONAPAY_BASE_URL || 'https://api.monapay.vn'),
+    monamailApi: cleanBaseUrl(env.MONAMAIL_API || 'https://api.monamail.vn'),
     vibecloudApi: cleanBaseUrl(env.MONACLOUD_API || env.VIBECLOUD_API || env.VIBECLOUD_API_URL || 'https://api.monacloud.vn'),
     consoleUrl: cleanBaseUrl(env.MONACLOUD_CONSOLE_URL || 'https://monacloud.vn/console'),
     clientId: env.MONACLOUD_CLIENT_ID || 'monacloud-mcp',

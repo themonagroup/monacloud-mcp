@@ -1,8 +1,8 @@
 # monacloud-mcp
 
-`monacloud-mcp` là MCP hợp nhất của MONA Cloud: cài một lần, đăng nhập một MONA Pass và dùng chung ví VND để quản lý tài khoản, chạy app/VPS, tích hợp MONA Pay và đọc catalog MONA Agent ngay trong Claude Code, Codex hoặc Cursor.
+`monacloud-mcp` là MCP hợp nhất của MONA Cloud: cài một lần, đăng nhập một MONA Pass và dùng chung ví VND để quản lý tài khoản, chạy app/VPS, tích hợp MONA Pay, gửi email giao dịch bằng MONA Mail và đọc catalog MONA Agent ngay trong Claude Code, Codex hoặc Cursor.
 
-Human chỉ cần đăng ký, nạp tiền và cung cấp OTP/KYC khi bắt buộc. Các bước tạo tài nguyên, đọc trạng thái, cấu hình webhook, test và deploy được thiết kế để AI agent làm qua MCP.
+Human đăng ký, duyệt chi phí, thêm DNS khi cần, nạp tiền và cung cấp OTP/KYC khi bắt buộc. Các bước tạo tài nguyên, đọc trạng thái, cấu hình webhook, test và deploy được thiết kế để AI agent làm qua MCP.
 
 ## Yêu cầu
 
@@ -76,7 +76,7 @@ Tên tool dùng `snake_case` để giữ tương thích với prompt MONA Pay c�
 
 ### MONA Pay
 
-`monacloud-mcp` import `monapay-mcp` và re-export toàn bộ tool của package, không copy implementation. Dependency range là `^0.3.0`; bộ dependency offline tại lần verify này là 0.5.5 với 47 tool MONA Pay, gồm các nhóm:
+`monacloud-mcp` import `monapay-mcp` và re-export toàn bộ tool của package, không copy implementation. Dependency range là `^0.5.5`; bộ dependency offline tại lần verify này là 0.5.5 với 47 tool MONA Pay, gồm các nhóm:
 
 - hồ sơ và nối ACB/VA bằng hai lần OTP;
 - payment profile, checkout, VietQR, sandbox transaction và đối soát;
@@ -91,7 +91,7 @@ Các tên cũ như `monapay_create_qr`, `monapay_link_bank_start`, `monapay_crea
 | Tool | Công dụng |
 |---|---|
 | `cloud_link` | Xác nhận direct MONA Pass; chỉ đổi sang `vc_live_*` nếu upstream còn ở chế độ cũ |
-| `cloud_vps_create` | Tạo LXC theo `package_slug` hoặc CPU/RAM/đĩa |
+| `cloud_vps_create` | Hourly theo cấu hình; monthly theo `plan_code`, `period: month/year`, kiểm ví đủ giá kỳ |
 | `cloud_db_create` | Tạo MongoDB, PostgreSQL hoặc MySQL |
 | `cloud_job_status` | Poll job tới trạng thái cuối, có timeout |
 | `cloud_services_list` | Liệt kê VPS/database |
@@ -100,6 +100,41 @@ Các tên cũ như `monapay_create_qr`, `monapay_link_bank_start`, `monapay_crea
 | `cloud_agent_deploy` | Stub có cấu trúc cho runtime MONA Agent wave sau |
 
 `cloud_service_stop` không bị chặn bởi số dư để người dùng luôn có thể hạn chế chi phí. Những lệnh tạo/start/rebuild thật đọc `GET /v1/balance` trước khi gọi compute MONA Cloud.
+
+### MONA Mail
+
+MONA Mail là dịch vụ gửi email giao dịch cho phần mềm và AI agent của người Việt: một API, trả VND, không cần thẻ, thuộc nhóm MONA Cloud của The MONA Group.
+
+20 tool `mail_*` dùng MONA Pass sẵn có; tài khoản Mail được tạo tự động ở request đầu. Site: https://monamail.vn, API: https://api.monamail.vn.
+
+| Tên | Việc |
+|---|---|
+| `mail_account` | Đọc tài khoản, email chủ, quota và bước kế tiếp |
+| `mail_plans` | Đọc giá và quota hiện hành của các gói |
+| `mail_plan_set` | Đổi gói, trừ ví VND khi chọn gói trả phí |
+| `mail_send` | Gửi OTP/thông báo hoặc thử bằng `sandbox: true` |
+| `mail_status` | Đọc trạng thái, events và nội dung sandbox |
+| `mail_list` | Lọc lịch sử theo trạng thái, người nhận và thời gian |
+| `mail_domain_add` | Thêm domain, trả records DNS và hướng dẫn |
+| `mail_domain_verify` | Kiểm DKIM và xác minh domain |
+| `mail_domain_cloudflare` | Thêm DNS bằng token Cloudflare của người dùng, dùng một lần, không lưu/log |
+| `mail_domains_list` | Liệt kê domain cùng trạng thái |
+| `mail_api_key_create` | Tạo key live/test, secret chỉ trả một lần |
+| `mail_api_keys_list` | Xem prefix và trạng thái key |
+| `mail_api_key_revoke` | Thu hồi key của app |
+| `mail_webhook_create` | Đăng ký HTTPS endpoint và các sự kiện email |
+| `mail_webhooks_list` | Liệt kê webhook |
+| `mail_webhook_test` | Gửi payload `email.delivered` mẫu |
+| `mail_suppressions_list` | Xem địa chỉ ngừng gửi và lý do |
+| `mail_suppression_remove` | Gỡ suppression của tài khoản; không gỡ lớp toàn hệ |
+| `mail_template_create` | Tạo mẫu với biến `{{ten_bien}}` |
+| `mail_stats` | Đọc thống kê giao thư và bounce theo thời gian |
+
+`mail_send` nhận 1 đến 50 người nhận, tối đa 10 tags, `subject` tối đa 998 ký tự và ít nhất một trong `html`/`text`. Khi dùng `template_id`, template thay cho `subject`/`html`/`text`. Sender `onboarding@monamail.vn` chỉ gửi tới email chủ từ `mail_account`; domain riêng cần verified trước khi gửi.
+
+Key chỉ trả một lần; ghi vào `.env` của app dưới tên `MONAMAIL_API_KEY`, không cần in ra chat. MCP tiếp tục dùng MONA Pass; app dùng SDK `monamail` với key `mm_live_` hoặc `mm_test_`. Sandbox bằng `mail_send({ ..., sandbox: true })` gửi header `X-Mona-Sandbox: 1` và trả `sandbox: true`; sandbox không gửi ra Internet, không tính quota hoặc trừ ví. Dùng `mail_status` để xem `sandbox_preview`.
+
+Mọi POST gửi `Idempotency-Key` từ `idempotency_key` hoặc tự tạo `mcp-mail-<uuid>`. Truyền key ổn định khi cần retry: trong 24 giờ, cùng key và body trả response cũ; khác body trả `idempotency_conflict`. MCP đưa key vào header, không đưa `sandbox` vào body API. Giá gói lấy bằng `mail_plans`; lỗi thiếu ví từ `mail_plan_set` hướng dẫn gọi `cloud_topup`.
 
 ## Thử 0đ bằng sandbox
 
@@ -124,8 +159,9 @@ cloud_services_list({ sandbox: true })
 ## Resource và prompt
 
 - `monacloud://llms`: mô tả máy đọc của toàn stack MONA Cloud.
-- `monacloud://status`: health tổng hợp MONA Pass, Billing, compute MONA Cloud và MONA Pay.
-- Prompt `dung-app-ban-hang-monacloud`: chuỗi VPS → database → VA/QR → webhook → deploy, chỉ dừng để hỏi nạp tiền hoặc OTP bắt buộc.
+- `monacloud://status`: health tổng hợp MONA Pass, Billing, compute MONA Cloud, MONA Pay và MONA Mail (`/v1/healthz`).
+- Prompt `dung-app-ban-hang-monacloud`: chuỗi VPS → database → VA/QR → webhook → deploy, đọc giá, duyệt chi phí rồi tạo; repo git dùng `cloud_app_create` (đang mở).
+- Prompt `gui-mail-otp-monamail(app_name?, framework?, domain?)`: account → thử onboarding → domain/DNS → verify → API key → `.env` → SDK OTP → webhook bounced; chỉ dừng ở bước thêm DNS hoặc nạp tiền.
 
 ## Spend guard và lỗi cho AI
 
@@ -160,6 +196,17 @@ Agent thực hiện:
 
 Chi tiết dành riêng cho agent: [`docs/ai-agent.md`](docs/ai-agent.md).
 
+## Ví dụ một lượt: gửi mail OTP
+
+Người dùng nói: “Tích hợp gửi mail OTP cho app shop bằng MONA Mail, domain shop.vn.”
+
+1. `mail_account`: lấy email chủ, quota và domain đã xác minh.
+2. Nếu chưa có domain, `mail_send` từ `onboarding@monamail.vn` tới email chủ, dùng idempotency key riêng; `mail_status` kiểm kết quả.
+3. `mail_domain_add({ domain: "shop.vn" })`: đưa records để user thêm DNS, hoặc gọi `mail_domain_cloudflare` bằng token của họ; sau đó `mail_domain_verify`.
+4. `mail_api_key_create({ name: "shop-otp", mode: "live" })`: ghi key trực tiếp vào `.env` dưới tên `MONAMAIL_API_KEY`.
+5. Viết server dùng `new MonaMail(process.env.MONAMAIL_API_KEY)` và `monamail.emails.send(...)` với `tags: ["otp"]`; kiểm thư bằng `mail_status`.
+6. Viết endpoint HMAC, `mail_webhook_create` với `events: ["email.bounced"]`, lưu secret rồi `mail_webhook_test`; khi thiếu ví gọi `cloud_topup` và chờ user nạp.
+
 ## Biến môi trường
 
 | Biến | Mặc định | Ý nghĩa |
@@ -167,6 +214,7 @@ Chi tiết dành riêng cho agent: [`docs/ai-agent.md`](docs/ai-agent.md).
 | `MONACLOUD_ISSUER` | `https://pass.monacloud.vn/realms/mona` | OIDC issuer |
 | `MONACLOUD_BILLING_URL` | `https://billing.monacloud.vn` | Billing/ví API |
 | `MONAPAY_API` | `https://api.monapay.vn` | MONA Pay API |
+| `MONAMAIL_API` | `https://api.monamail.vn` | MONA Mail API, dùng Bearer MONA Pass của MCP |
 | `MONACLOUD_API` | `https://api.monacloud.vn` | Compute API của MONA Cloud |
 | `MONACLOUD_CONSOLE_URL` | `https://monacloud.vn/console` | URL trả cho bước human |
 | `MONACLOUD_TOKEN` | — | PAT/access token ưu tiên token store |
@@ -189,3 +237,33 @@ node --test
 ```
 
 Test dùng Node built-in, MCP transport thật qua stdio, process con và mock HTTP local. Trong sandbox cấm bind socket, test tự dùng fetch fixture tương đương. Bộ test không gọi Internet.
+
+## Mới ở 0.3.0: gói tháng, hoá đơn và app từ git
+
+| Tool mới | Công dụng |
+|---|---|
+| `cloud_plan_list` | Bảng gói và giá tháng/năm, gợi ý theo CPU/RAM/đĩa |
+| `cloud_subscription_list` / `cloud_subscription_update` | Đọc gói, đổi chu kỳ, auto-renew; huỷ với `cancel_action: hourly/stop` |
+| `cloud_invoice_list` / `cloud_invoice_pdf` | Xem hoá đơn và tải PDF về file tạm riêng tư |
+| `cloud_credit_redeem` | Dùng mã credit được người dùng cung cấp |
+| `cloud_app_create` / `cloud_app_list` / `cloud_app_get` | Deploy public repo HTTPS, poll job và đọc URL; **đang mở** |
+| `cloud_app_deploy` / `cloud_app_env_set` | Deploy lại, thay env; **đang mở** |
+| `cloud_app_domain_add` / `cloud_app_logs` / `cloud_app_delete` | CNAME domain, log build, xoá app; **đang mở** |
+| `cloud_app_host_list` | Xem host và tài nguyên/chi phí; **đang mở** |
+
+15 tool mới có 15 alias `vibecloud_` tương ứng. Tổng với MONA Pay 0.5.5 đang có: **133 tool**, gồm 20 Mail và 26 alias compute. Package/MCP binary version: **0.3.0**.
+
+```text
+cloud_plan_list({ ram_gb: 4 })
+# Đọc ví, báo giá, chờ duyệt rồi tạo:
+cloud_vps_create({ app_name: "shop", billing_mode: "monthly", plan_code: "kinh-doanh", period: "month" })
+cloud_invoice_pdf({ invoice_id: "<id>" })
+cloud_app_host_list()
+cloud_app_create({ repo_url: "https://github.com/example/shop.git", branch: "main", build_type: "nixpacks", sandbox: true })
+```
+
+Monthly bỏ qua CPU/RAM/đĩa và package_slug, đọc cấu hình/giá từ plan và guard toàn bộ giá tháng/năm. Backend chưa nhận monthly sandbox: MCP thử cấu hình plan qua hourly sandbox 0đ, trả giá thật trong `estimate`, không tạo subscription. Khi tạo thật phải tắt `MONACLOUD_SANDBOX` nếu đã bật env.
+
+Khi user nói “deploy repo”, đọc host; chưa có host thì sandbox `cloud_app_create` để ước tính, hỏi duyệt rồi tạo thật và kiểm URL. Tool chờ job tối đa 600 giây; dùng `wait:false` và `cloud_job_status` nếu host MCP có timeout ngắn. Endpoint Wave B đang mở, lỗi API được báo thật.
+
+Hợp đồng HTTP, đầy đủ tham số, ví dụ billing/deploy, PDF và giới hạn rollout: [docs/wave-ab.md](docs/wave-ab.md).

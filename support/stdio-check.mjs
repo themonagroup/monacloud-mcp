@@ -60,15 +60,19 @@ const transport = new StdioClientTransport({
     MONACLOUD_ISSUER: issuer,
     MONACLOUD_BILLING_URL: listenResult ? `http://127.0.0.1:${listenResult.port}` : 'https://billing.test',
     MONAPAY_API: listenResult ? `http://127.0.0.1:${listenResult.port}` : 'https://pay.test',
+    MONAMAIL_API: listenResult ? `http://127.0.0.1:${listenResult.port}` : 'https://mail.test',
     MONACLOUD_API: listenResult ? `http://127.0.0.1:${listenResult.port}` : 'https://cloud.test',
   },
 });
 const client = new Client({ name: 'stdio-test', version: '1.0.0' });
+let summary;
+let serverStderr = '';
+transport.stderr?.on('data', (chunk) => { serverStderr += chunk.toString(); });
 try {
   await client.connect(transport);
   const listed = await client.listTools();
   const names = listed.tools.map((tool) => tool.name);
-  assert.ok(names.length >= 49);
+  assert.equal(names.length, 133);
   for (const name of [
     'cloud_whoami', 'cloud_balance', 'cloud_topup', 'cloud_services',
     'monapay_create_qr', 'monapay_create_webhook',
@@ -89,7 +93,14 @@ try {
     'monacloud://llms', 'monacloud://status',
   ]);
   const prompts = await client.listPrompts();
-  assert.deepEqual(prompts.prompts.map((prompt) => prompt.name), ['dung-app-ban-hang-monacloud']);
+  const promptNames = prompts.prompts.map((prompt) => prompt.name);
+  assert.deepEqual(promptNames, ['dung-app-ban-hang-monacloud', 'gui-mail-otp-monamail']);
+  summary = {
+    tools_count: names.length,
+    mail_tools: names.filter((name) => name.startsWith('mail_')).sort(),
+    prompts: promptNames,
+    version: client.getServerVersion().version,
+  };
 } finally {
   await client.close();
   if (listenResult) {
@@ -98,4 +109,5 @@ try {
   }
 }
 
-console.log('STDIO PASS');
+assert.equal(serverStderr, '', 'MCP server không ghi token hoặc API key ra stderr');
+console.log(`STDIO PASS ${JSON.stringify(summary)}`);

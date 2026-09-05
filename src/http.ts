@@ -22,7 +22,7 @@ const nestedString = (body: Record<string, unknown>, key: string): string | unde
   return typeof nested === 'string' && nested ? nested : undefined;
 };
 
-function apiError(response: Response, body: unknown): CloudError {
+export function apiError(response: Response, body: unknown): CloudError {
   const parsed = asRecord(body);
   const requestId = response.headers.get('x-request-id')
     || nestedString(parsed, 'request_id');
