@@ -6,7 +6,7 @@ import { unwrapData } from './http.js';
 import { finishAppJob } from './jobs.js';
 
 type Row = Record<string, unknown>;
-export const APP_FLOW = 'Khi user nói "deploy repo", dùng cloud_app_create (app từ git đang mở). Đọc cloud_app_host_list, cloud_prices/cloud_packages và cloud_balance; nếu chưa có app host thì cloud_app_create sandbox=true trước để lấy ước tính. Đọc → ước tính VND → hỏi duyệt nếu chưa được duyệt → làm thật → poll tới done/succeeded → kiểm URL. Không gọi agent_deploy cho repo git. / Deploy a repository with cloud_app_create; inspect, estimate, obtain approval, then deploy.';
+export const APP_FLOW = 'Khi user nói "deploy repo", dùng cloud_app_create (app từ git đã live: repo public → URL https). Đọc cloud_app_host_list, cloud_prices/cloud_packages và cloud_balance; nếu chưa có app host thì cloud_app_create sandbox=true trước để lấy ước tính. Đọc → ước tính VND → hỏi duyệt nếu chưa được duyệt → làm thật → poll tới done/succeeded → kiểm URL. Không gọi agent_deploy cho repo git. / Deploy a repository with cloud_app_create; inspect, estimate, obtain approval, then deploy.';
 const sandbox = z.boolean().optional().describe('Thử 0đ, không tạo hạ tầng thật / Sandbox, no charge');
 const id = z.string().trim().min(1).max(255);
 const planCode = z.string().trim().min(2).max(64);
@@ -76,7 +76,7 @@ export function registerComputeTools(server: McpServer, clients: CloudClients) {
   register('cloud_invoice_pdf', 'Tải PDF hoá đơn vào file tạm riêng tư, trả path; sao chép ra nơi cần giữ trước khi hệ điều hành dọn. / Download invoice PDF to a private temporary file.', z.object({ invoice_id: id }).strict(), ({ invoice_id }) => clients.invoicePdf(invoice_id));
   register('cloud_credit_redeem', 'Dùng mã credit người dùng cung cấp sau khi họ đồng ý; không thử đoán mã. / Redeem an approved promotional credit code.', z.object({ code: z.string().trim().min(2).max(64) }).strict(), ({ code }) => clients.vibecloud('/api/credit-codes/redeem', { method: 'POST', body: { code: code.toUpperCase() } }));
 
-  const appNotice = 'App từ git đang mở; endpoint có thể chưa live. / Git apps rollout in progress. ';
+  const appNotice = 'App từ git đã live: app host đầu tiên ~2–3 phút, deploy sau đó 10–20 giây. / Git apps are live. ';
   const poll = { wait: z.boolean().default(true), interval_sec: z.number().int().min(1).max(30).default(3), timeout_sec: z.number().int().min(1).max(600).default(600) };
   const env = z.record(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/), z.string().refine((value) => !value.includes('\0'), 'Env không chứa NUL.')).refine((value) => Object.keys(value).length <= 200 && Object.entries(value).reduce((sum, [key, val]) => sum + key.length + val.length, 0) <= 65536, 'Env tối đa 200 key / 64 KiB.');
   const domain = z.string().trim().min(3).max(253).regex(/^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$/, 'Chỉ hostname, không URL/path.');
