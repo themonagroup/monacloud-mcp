@@ -2,7 +2,7 @@
 
 Tài liệu này dành cho Claude, Codex, Cursor và agent dùng Model Context Protocol. Mục tiêu là hoàn thành tích hợp end-to-end mà không yêu cầu người dùng mở dashboard; các bước human gồm đăng ký MONA Pass, duyệt chi phí, thêm DNS khi cần, nạp tiền và OTP/KYC bắt buộc.
 
-## Luồng chuẩn 0.4.0: AI làm 99%
+## Luồng chuẩn 0.5.0: AI làm 99%
 
 Prompt Claude Code: **“Đưa dự án này lên MONA Cloud, dùng thư mục hiện tại”**.
 
@@ -11,6 +11,7 @@ Prompt Claude Code: **“Đưa dự án này lên MONA Cloud, dùng thư mục h
 3. `cloud_app_create({local_dir, name?, env?, sandbox:false})` đóng ZIP và upload. Poll tới done/succeeded, kiểm HTTPS/health rồi trả `{url, app_id, build, seconds}`. Khi response có `sandbox:true`/`needs_cost_approval:true`, đó vẫn là preview; làm theo `next_step` trước khi gọi thật.
 4. Nếu human có domain, `cloud_app_domain_add({app_id, host})`, đưa đúng CNAME do API trả, chờ DNS và kiểm HTTPS. Không tự đoán target CNAME.
 5. Sửa code local: `cloud_app_deploy({app_id, local_dir})`. Chỉ đổi env: `cloud_app_env_set` với map đầy đủ rồi `cloud_app_deploy({app_id})`. Timeout giữ job_id/app_id để tiếp tục, không tạo app mới.
+6. Cần DB/Supabase thì gọi `cloud_base_create` (beta): sandbox để lấy ước tính, duyệt chi phí rồi tạo thật. Base dùng chung account/ví MONA Cloud và khớp app deploy. Lưu credential vào secret store hoặc `.env` không commit; không log `anon_key`, `service_key`, `db_url`.
 
 Human chỉ cần đăng ký MONA Pass/device flow, duyệt chi phí một lần và nạp tiền khi hết credit 20k; DNS là bước thêm khi dùng domain riêng. AI làm các bước kỹ thuật còn lại. `.env*` kể cả `.env.example` không vào ZIP; truyền secret cần thiết qua `env`, không công khai. Xem [hợp đồng local deploy](local-deploy.md). VPS/database thủ công dưới đây chỉ dùng khi dự án cần hoặc người dùng chọn.
 

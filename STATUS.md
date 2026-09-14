@@ -1,4 +1,22 @@
-# STATUS — monacloud-mcp 0.4.0
+# STATUS — monacloud-mcp 0.5.0
+
+Updated: 2026-09-14 (Asia/Ho_Chi_Minh)
+
+## MONA Base beta — hoàn tất offline
+
+- Thêm `cloud_base_create`, `cloud_base_list`, `cloud_base_get`, `cloud_base_delete`, `cloud_base_credentials` và 5 alias `vibecloud_base_*` cùng schema/handler.
+- `cloud_base_create` dùng spend guard cho lượt thật, sandbox bỏ Billing và gửi `X-Vibecloud-Sandbox: 1`, poll job rồi chuẩn hoá `{base_id, studio_url, api_url, status}` cùng estimate sandbox.
+- Credential gửi `X-Confirm: reveal`, chỉ trả `anon_key`, `service_key`, `db_url` và nhắc “Bí mật, không log”. Lỗi giữ `{code,next_step}` cho agent.
+- Mô tả tool, instructions, resource, prompt, README và agent guide ghi Base **beta** = thay Supabase, chung account/ví MONA Cloud, khớp app deploy.
+- Package, binary và MCP handshake đã bump minor lên `0.5.0`; stdio có 145 tool.
+- `npm test` offline: **52 tests, 52 pass, 0 fail, 0 skip**, gồm TypeScript build và HTTP mock Base create/poll/sandbox/list/get/delete/credentials/aliases.
+- ✅ **PUBLISHED npm `monacloud-mcp@0.5.0`** (2026-09-14, tag latest, acc rxathu9999) sau khi Base đạt provision-live + verified (base up ~4.5 phút, supabase-js chạy). MCP trỏ prod `https://api.monacloud.vn` (base_* live: /api/bases 401, capabilities có key `base`). Mon chốt "public mona base đi".
+
+CODEX DONE
+
+---
+
+# Lịch sử — monacloud-mcp 0.4.0
 
 Updated: 2026-09-05 (Asia/Ho_Chi_Minh)
 

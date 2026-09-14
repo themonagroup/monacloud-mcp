@@ -1,8 +1,33 @@
 {
   "name": "monacloud-mcp",
-  "version": "0.4.2",
-  "description": "Unified MCP server for MONA Cloud, MONA Pay and MONA Agent.",
+  "version": "0.5.0",
+  "description": "MCP server for MONA Cloud — deploy apps (Vercel alternative), Supabase-compatible Postgres/Auth/Storage bases (Supabase alternative), VND wallet, MONA Pay & Mail — for AI agents (Claude, Cursor, Codex) in Vietnam.",
   "license": "MIT",
+  "homepage": "https://monacloud.vn",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/themonagroup/monacloud-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/themonagroup/monacloud-mcp/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "mona-cloud",
+    "mona-base",
+    "supabase-alternative",
+    "vercel-alternative",
+    "vietnam",
+    "vnd",
+    "ai-agent",
+    "claude",
+    "cursor",
+    "codex",
+    "postgres",
+    "deploy",
+    "vibecoder"
+  ],
   "type": "module",
   "bin": {
     "monacloud-mcp": "dist/index.js"

@@ -72,13 +72,15 @@ try {
   await client.connect(transport);
   const listed = await client.listTools();
   const names = listed.tools.map((tool) => tool.name);
-  assert.equal(names.length, 135);
+  assert.equal(names.length, 145);
   for (const name of [
     'cloud_whoami', 'cloud_balance', 'cloud_topup', 'cloud_services',
     'monapay_create_qr', 'monapay_create_webhook',
     'cloud_vps_create', 'cloud_db_create', 'cloud_job_status',
     'cloud_services_list', 'cloud_service_start', 'cloud_service_stop', 'cloud_service_rebuild',
     'cloud_prices', 'cloud_packages', 'cloud_agent_deploy', 'cloud_link',
+    'cloud_base_create', 'cloud_base_list', 'cloud_base_get', 'cloud_base_delete', 'cloud_base_credentials',
+    'vibecloud_base_create', 'vibecloud_base_list', 'vibecloud_base_get', 'vibecloud_base_delete', 'vibecloud_base_credentials',
     'agent_templates_list', 'agent_deploy',
   ]) assert.ok(names.includes(name), `${name} phải có trong tools/list`);
 

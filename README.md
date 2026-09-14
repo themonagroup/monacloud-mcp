@@ -1,8 +1,12 @@
 # monacloud-mcp
 
-`monacloud-mcp` là MCP hợp nhất của MONA Cloud: cài một lần, đăng nhập một MONA Pass và dùng chung ví VND để quản lý tài khoản, chạy app/VPS, tích hợp MONA Pay, gửi email giao dịch bằng MONA Mail và đọc catalog MONA Agent ngay trong Claude Code, Codex hoặc Cursor.
+`monacloud-mcp` là MCP hợp nhất của MONA Cloud: cài một lần, đăng nhập một MONA Pass và dùng chung ví VND để quản lý tài khoản, chạy app/VPS, tạo Base beta thay Supabase, tích hợp MONA Pay, gửi email giao dịch bằng MONA Mail và đọc catalog MONA Agent ngay trong Claude Code, Codex hoặc Cursor.
 
 Human đăng ký, duyệt chi phí, thêm DNS khi cần, nạp tiền và cung cấp OTP/KYC khi bắt buộc. Các bước tạo tài nguyên, đọc trạng thái, cấu hình webhook, test và deploy được thiết kế để AI agent làm qua MCP.
+
+## 0.5.0 — MONA Base beta
+
+Thêm `cloud_base_create/list/get/delete/credentials` cùng alias `vibecloud_base_*`. Base thay Supabase, chung MONA Pass/ví MONA Cloud và khớp app deploy. Sandbox chỉ ước tính, không provision; chờ Base provision-live trước khi publish package.
 
 ## 0.4.0 — Đưa thư mục hiện tại lên web
 
@@ -121,6 +125,19 @@ Các tên cũ như `monapay_create_qr`, `monapay_link_bank_start`, `monapay_crea
 | `cloud_service_start` / `cloud_service_stop` / `cloud_service_rebuild` | Quản lý vòng đời service |
 | `cloud_prices` / `cloud_packages` | Đơn giá và gói cấu hình |
 | `cloud_agent_deploy` | Stub có cấu trúc cho runtime MONA Agent wave sau |
+
+### MONA Base (beta)
+
+Base thay Supabase, dùng chung MONA Pass và ví MONA Cloud, đồng thời khớp với app deploy. Sandbox chỉ trả URL thử và ước tính, không tạo hạ tầng thật.
+
+| Tool | Công dụng |
+|---|---|
+| `cloud_base_create` | Tạo Base, tự poll job và trả `base_id`, `studio_url`, `api_url`, `status` |
+| `cloud_base_list` / `cloud_base_get` | Liệt kê hoặc đọc trạng thái Base |
+| `cloud_base_credentials` | Đọc `anon_key`, `service_key`, `db_url`; bí mật, không log |
+| `cloud_base_delete` | Xoá Base đã được duyệt |
+
+Mỗi tool có alias `vibecloud_base_*` cùng schema và handler. Cần DB/Supabase cho app thì gọi `cloud_base_create`; Base dùng cùng account và khớp app deploy.
 
 `cloud_service_stop` không bị chặn bởi số dư để người dùng luôn có thể hạn chế chi phí. Những lệnh tạo/start/rebuild thật đọc `GET /v1/balance` trước khi gọi compute MONA Cloud.
 
