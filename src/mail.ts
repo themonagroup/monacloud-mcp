@@ -28,7 +28,10 @@ const empty = z.object({}).strict();
 const events = z.enum([
   'email.sent', 'email.delivered', 'email.deferred', 'email.bounced',
   'email.complained', 'email.suppressed', 'email.failed', 'domain.verified',
+  'inbox.message',
 ]);
+const agentId = z.string().trim().min(1).max(64).regex(/^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$/, 'agent_id chỉ nhận chữ thường, số, dấu chấm, gạch dưới hoặc gạch nối.');
+const inboxMatch = z.string().trim().min(1).max(200).describe('otp để lấy mã, hoặc regex khớp nội dung/subject/from.');
 const status = z.enum(['queued', 'sent', 'delivered', 'deferred', 'bounced', 'complained', 'suppressed', 'failed', 'sandbox']);
 
 function idempotencyHeaders(key?: string): Record<string, string> {
@@ -208,4 +211,71 @@ export function registerMailTools(server: McpServer, clients: CloudClients, conf
       'Thời điểm from phải trước hoặc bằng to.',
     ),
   }, (query) => runTool(() => clients.mail('/v1/stats', { query })));
+
+  // ── Hộp thư AI agent (nhận + đọc + trả lời) ─────────────────────────────
+  server.registerTool('mail_inbox_create', {
+    title: 'Tạo hộp thư agent',
+    description: 'Khi cần một địa chỉ email cho agent trực (đọc thư, trả lời), tạo hộp. Bỏ domain để dùng miền agent.monamail.vn (nhận ngay); truyền domain đã verify để có địa chỉ brand. / Use to create an inbox an AI agent can read and reply from.',
+    inputSchema: z.object({ agent_id: agentId, domain: domain.optional() }).strict(),
+  }, ({ agent_id, domain }) => runTool(() => clients.mail('/v1/inboxes', {
+    method: 'POST', body: domain ? { agent_id, domain } : { agent_id },
+  })));
+
+  server.registerTool('mail_inbox_list', {
+    title: 'Danh sách hộp agent',
+    description: 'Khi cần biết agent đang trực những hộp nào, liệt kê hộp còn hoạt động. / Use to list active agent inboxes.',
+    inputSchema: empty,
+  }, () => runTool(() => clients.mail('/v1/inboxes')));
+
+  server.registerTool('mail_inbox_get', {
+    title: 'Xem hộp agent',
+    description: 'Khi cần địa chỉ và trạng thái của một hộp, đọc chi tiết. / Use to read one inbox.',
+    inputSchema: z.object({ inbox_id: id }).strict(),
+  }, ({ inbox_id }) => runTool(() => clients.mail(`/v1/inboxes/${encodeURIComponent(inbox_id)}`)));
+
+  server.registerTool('mail_inbox_delete', {
+    title: 'Xóa hộp agent',
+    description: 'Khi hộp không còn dùng, xóa mềm; thư cũ còn đọc tới hết retention. / Use to soft-delete an inbox.',
+    inputSchema: z.object({ inbox_id: id }).strict(),
+  }, ({ inbox_id }) => runTool(() => clients.mail(`/v1/inboxes/${encodeURIComponent(inbox_id)}`, { method: 'DELETE' })));
+
+  server.registerTool('mail_inbox_messages', {
+    title: 'Thư trong hộp agent',
+    description: 'Khi trực hộp, liệt kê thư nhận; lọc seen=false để lấy thư chưa xử lý, phân trang bằng cursor. / Use to list messages an agent needs to handle.',
+    inputSchema: z.object({
+      inbox_id: id,
+      seen: z.boolean().optional().describe('false = chỉ thư chưa đọc.'),
+      since: timestamp.optional(),
+      limit: z.number().int().min(1).max(100).default(50),
+      cursor: z.string().min(1).max(255).optional(),
+    }).strict(),
+  }, ({ inbox_id, seen, since, limit, cursor }) => runTool(() => clients.mail(`/v1/inboxes/${encodeURIComponent(inbox_id)}/messages`, {
+    query: { limit, cursor, since, ...(seen === undefined ? {} : { seen: String(seen) }) },
+  })));
+
+  server.registerTool('mail_inbox_message', {
+    title: 'Đọc thư trong hộp',
+    description: 'Khi cần nội dung đầy đủ, header và đính kèm của một thư, đọc chi tiết; lần đọc đầu đánh dấu đã xem. / Use to read a full inbox message before replying.',
+    inputSchema: z.object({ inbox_id: id, message_id: id }).strict(),
+  }, ({ inbox_id, message_id }) => runTool(() => clients.mail(
+    `/v1/inboxes/${encodeURIComponent(inbox_id)}/messages/${encodeURIComponent(message_id)}`,
+  )));
+
+  server.registerTool('mail_inbox_reply', {
+    title: 'Trả lời thư trong hộp',
+    description: 'Khi agent trả lời khách, gửi đúng thread (In-Reply-To, References) từ địa chỉ hộp; cần text hoặc html. Việc khó rút lại (hứa giá, chuyển tiền) thì báo người, đừng tự gửi. / Use to reply to an inbox message in-thread.',
+    inputSchema: z.object({ inbox_id: id, message_id: id, text: z.string().min(1).optional(), html: z.string().min(1).optional() })
+      .strict().refine((value) => value.text || value.html, 'Cần text hoặc html để trả lời.'),
+  }, ({ inbox_id, message_id, ...body }) => runTool(() => clients.mail(
+    `/v1/inboxes/${encodeURIComponent(inbox_id)}/messages/${encodeURIComponent(message_id)}/reply`,
+    { method: 'POST', body },
+  )));
+
+  server.registerTool('mail_inbox_wait', {
+    title: 'Chờ thư trong hộp',
+    description: 'Khi cần chờ thư tới (ví dụ mã OTP hoặc thư khớp mẫu), chờ tối đa timeout giây; có thư khớp trả full nội dung + extracted_code, hết giờ trả 204. Gọi lại nếu cần chờ lâu hơn. / Use to wait for an OTP or a matching message.',
+    inputSchema: z.object({ inbox_id: id, match: inboxMatch, timeout: z.number().int().min(0).max(300).default(120) }).strict(),
+  }, ({ inbox_id, match, timeout }) => runTool(() => clients.mail(`/v1/inboxes/${encodeURIComponent(inbox_id)}/wait`, {
+    query: { match, timeout },
+  })));
 }
