@@ -278,4 +278,27 @@ export function registerMailTools(server: McpServer, clients: CloudClients, conf
   }, ({ inbox_id, match, timeout }) => runTool(() => clients.mail(`/v1/inboxes/${encodeURIComponent(inbox_id)}/wait`, {
     query: { match, timeout },
   })));
+
+  server.registerTool('mail_inbox_update', {
+    title: 'Cấu hình hộp agent',
+    description: 'Khi cần đặt cách hộp xử lý thư: mode redirect (tự forward thư về email chủ) | store (chỉ lưu) | ai (để AI trực), địa chỉ forward_to, chat Telegram nhận báo, hoặc bật/tắt hộp. / Use to configure an inbox: redirect-forward email, Telegram chat, mode, active.',
+    inputSchema: z.object({
+      inbox_id: id,
+      forward_to: email.optional().describe('Email chủ nhận bản forward khi mode=redirect.'),
+      mode: z.enum(['redirect', 'store', 'ai']).optional().describe('redirect=tự forward về forward_to · store=chỉ lưu · ai=để AI trực.'),
+      notify_telegram: z.string().max(64).optional().describe('chat_id Telegram nhận ping khi có thư.'),
+      active: z.boolean().optional(),
+    }).strict().refine((v) => Object.keys(v).length > 1, 'Cần ít nhất một trường để cập nhật.'),
+  }, ({ inbox_id, ...body }) => runTool(() => clients.mail(`/v1/inboxes/${encodeURIComponent(inbox_id)}`, { method: 'PATCH', body })));
+
+  server.registerTool('mail_inbox_batch', {
+    title: 'Tạo nhiều hộp agent',
+    description: 'Khi cần tạo nhiều địa chỉ một lần (ví dụ mỗi nhân viên một hộp), tạo hàng loạt trong quota gói; lỗi từng hộp không hủy cả batch. / Use to create many inboxes at once.',
+    inputSchema: z.object({
+      agent_ids: z.array(agentId).min(1).max(100),
+      domain: domain.optional(),
+      forward_to: email.optional(),
+      mode: z.enum(['redirect', 'store', 'ai']).optional(),
+    }).strict(),
+  }, (body) => runTool(() => clients.mail('/v1/inboxes/batch', { method: 'POST', body })));
 }
