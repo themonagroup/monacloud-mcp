@@ -14,7 +14,7 @@ type CatalogEntry = {
 const BUILTIN: CatalogEntry[] = [
   { slug: 'cskh-zalo', name: 'CSKH Zalo', description: 'Trả lời khách từ tài liệu shop và chuyển ca khó cho người.', products: ['MONA AI', 'MONA Base', 'Zalo ZNS'] },
   { slug: 'sales-chot-don', name: 'Sales chốt đơn', description: 'Tư vấn, báo giá, tạo QR MONA Pay và xác nhận tiền vào.', products: ['MONA Pay', 'MONA AI'] },
-  { slug: 'ke-toan-hddt', name: 'Kế toán HĐĐT', description: 'Đọc tiền vào, phát hành hoá đơn điện tử và nhắc công nợ.', products: ['MONA Pay', 'monahddt', 'MONA Mail'] },
+  { slug: 'ke-toan-hddt', name: 'Kế toán HĐĐT', description: 'Đọc tiền vào, phát hành hoá đơn điện tử và nhắc công nợ.', products: ['MONA Pay', 'MONA eInvoice', 'MONA Mail'] },
   { slug: 'content-seo', name: 'Content SEO', description: 'Viết và đăng bài theo voice thương hiệu, có gate QC.', products: ['MONA AI'] },
   { slug: 'noi-bo-kin', name: 'Nội bộ kín', description: 'Trợ lý đọc tài liệu công ty, dữ liệu không rời server.', products: ['MONA Cloud', 'MONA Base', 'Ollama'] },
   { slug: 'tro-giang-academy', name: 'Trợ giảng Academy', description: 'Trợ giảng cho academy của giảng viên.', products: ['mona.academy', 'MONA AI'] },
