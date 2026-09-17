@@ -4,6 +4,10 @@
 
 Human đăng ký MONA Pass một lần, duyệt chi phí, thêm DNS khi cần, quét QR nạp ví do AI tạo và cung cấp OTP/KYC khi bắt buộc. Các bước tạo yêu cầu nạp, tạo tài nguyên, đọc trạng thái, cấu hình webhook, test và deploy được thiết kế để AI agent làm qua MCP.
 
+## 0.8.1 — luật nạp ví đứng đầu instructions
+
+Codex chỉ chắc chắn đọc 512 ký tự đầu của `instructions` MCP, nên luật "ví thiếu → AI tự gọi `cloud_topup`, in QR, không bảo mở console" được đưa lên đầu; mô tả hệ và APP_FLOW đặt sau. Kiểm thử 17/09: Claude Code (sonnet) và Gemini (Antigravity CLI) tự gọi `cloud_topup` và in QR khi người dùng nói "ví hết tiền, nạp 50k"; Codex `exec` cần cho phép gọi MCP (mặc định chặn approval) rồi cũng làm được.
+
 ## 0.8.0 — Nạp ví ngay trong terminal
 
 Ví thiếu tiền thì AI gọi `cloud_topup(amount)`; MCP trả **`qr_ascii`** (QR VietQR chuẩn EMVCo/NAPAS in bằng khối đầy `██`, Claude Code/Codex/Gemini CLI hiện được ngay; terminal nền sáng dùng `qr_ascii_light`, bản gọn `qr_ascii_small`; đã giải mã được bằng ZBar và OpenCV ở cả hai nền), `qr_file` (PNG tại `~/.config/monacloud/`), `qr_url` (ảnh VietQR) cùng ngân hàng, số tài khoản, số tiền, nội dung chuyển khoản. Người dùng mở app ngân hàng quét màn hình, tiền vào tự cộng ví; AI gọi `cloud_topup_status(topup_id)` tới khi `paid` rồi làm tiếp. Không còn bảo người dùng mở console để nạp; base64 không còn nằm trong text (tiết kiệm 15–25k token mỗi lần). Khi ví chung (`billing`) chưa nhận token hoặc merchant MONA Pay chưa cấu hình, `cloud_topup` tự chuyển sang đường compute `/api/payments/vietqr` (ví local, prefix VIBECLOUD, báo có tự cộng).
