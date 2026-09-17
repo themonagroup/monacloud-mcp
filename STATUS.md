@@ -1,5 +1,9 @@
 # STATUS — monacloud-mcp 0.5.0
 
+## 0.8.0 — nạp ví ngay trong terminal (17/09/2026)
+- [x] `cloud_topup` trả `qr_ascii` (VietQR EMVCo/NAPAS dựng local, CRC16 khớp mẫu acb-ipn) + `qr_file` PNG + `qr_url` + ngân hàng/số TK/số tiền/nội dung; bỏ base64 khỏi text. Fallback compute `/api/payments/vietqr` khi billing 401/403/404/502/503 (merchant MONA Pay placeholder). Thêm `cloud_topup_status`.
+- [x] Lời cho AI: instructions/llms/prompt/README/docs nói rõ AI tự tạo QR, người dùng chỉ quét, không mở console (luật AI-first §1, Mon chốt 17/09).
+
 Updated: 2026-09-14 (Asia/Ho_Chi_Minh)
 
 ## MONA Base beta — hoàn tất offline

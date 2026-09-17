@@ -308,7 +308,7 @@ test('Mail xuất hiện trong instructions, llms, health và prompt OTP zero-da
     assert.equal(init.headers.Authorization, undefined, 'Health là public');
     return response({ status: 'ok' });
   }, mailEnv, async (client) => {
-    assert.equal(client.getServerVersion().version, '0.5.0');
+    assert.equal(client.getServerVersion().version, '0.8.0');
     assert.match(client.getInstructions(), /mail_\* để gửi email giao dịch \(MONA Mail\)/);
     const llms = await client.readResource({ uri: 'monacloud://llms' });
     assert.match(llms.contents[0].text, /- mail_\*: tài khoản, domain, API key, gửi mail, trạng thái, webhook, suppression \(MONA Mail https:\/\/monamail.vn, API https:\/\/api.monamail.vn\)/);
@@ -318,7 +318,7 @@ test('Mail xuất hiện trong instructions, llms, health và prompt OTP zero-da
     assert.ok(calls.includes('https://mail.test/v1/healthz'));
     const listed = await client.listTools();
     const mail = listed.tools.filter((tool) => tool.name.startsWith('mail_'));
-    assert.equal(mail.length, 20);
+    assert.equal(mail.length, 30);
     for (const tool of mail) {
       assert.match(tool.description, /Khi .*\/ Use/i);
       assert.equal(tool.inputSchema.additionalProperties, false);
@@ -505,29 +505,96 @@ test('402 budget_exceeded trả lỗi JSON cho AI với next_step nạp ví', as
   });
 });
 
-test('cloud_topup ánh xạ amount, idempotency và trả hướng dẫn VietQR', async () => {
+test('cloud_topup ví chung: ánh xạ amount, idempotency, bỏ base64, ghi qr_file, hướng dẫn quét', async () => {
   let captured;
+  const configDir = await mkdtemp(join(tmpdir(), 'monacloud-topup-'));
   const env = {
     ...process.env,
     MONACLOUD_TOKEN: 'fake-token',
     MONACLOUD_BILLING_URL: 'https://billing.test',
+    MONACLOUD_CONFIG_DIR: configDir,
   };
+  const png = Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex').toString('base64');
   const fetchImpl = async (url, init) => {
     assert.equal(String(url), 'https://billing.test/v1/topups');
     captured = init;
-    return response({ topup_id: 'topup-1', qr_data_url: 'data:image/png;base64,QR', status: 'pending' }, 201);
+    return response({ topup_id: 'topup-1', order_ref: 'MC1', qr_data_url: `data:image/png;base64,${png}`, status: 'pending' }, 201);
   };
   await withClient(fetchImpl, env, async (client) => {
     const result = parsedText(await client.callTool({
       name: 'cloud_topup',
       arguments: { amount: 200000, idempotency_key: 'topup-shop-1' },
     }));
-    assert.equal(result.qr_data_url, 'data:image/png;base64,QR');
-    assert.match(result.instructions, /quét qr_data_url/);
+    assert.equal(result.qr_data_url, undefined);
+    assert.equal(result.topup_id, 'topup-1');
+    assert.equal(result.wallet, 'central');
+    assert.equal(result.amount_vnd, 200000);
+    assert.ok(result.qr_file.startsWith(configDir));
+    assert.match(result.instructions, /qr_ascii/);
+    assert.match(result.instructions, /cloud_topup_status/);
   });
   assert.deepEqual(JSON.parse(captured.body), { amount_vnd: 200000 });
   assert.equal(captured.headers['Idempotency-Key'], 'topup-shop-1');
   assert.equal(captured.headers.Authorization, 'Bearer fake-token');
+});
+
+test('cloud_topup fallback compute khi billing 502 monapay_unavailable: qr_ascii in được, rồi cloud_topup_status paid', async () => {
+  const calls = [];
+  const configDir = await mkdtemp(join(tmpdir(), 'monacloud-topup-'));
+  const env = {
+    ...process.env,
+    MONACLOUD_TOKEN: 'fake-token',
+    MONACLOUD_BILLING_URL: 'https://billing.test',
+    MONACLOUD_API: 'https://api.test',
+    MONACLOUD_CONFIG_DIR: configDir,
+  };
+  const paymentId = '66f0a1b2c3d4e5f6a7b8c9d0';
+  const fetchImpl = async (url, init) => {
+    calls.push(`${init?.method || 'GET'} ${url}`);
+    if (String(url) === 'https://billing.test/v1/topups') return response({ code: 'monapay_unavailable' }, 502);
+    if (String(url) === 'https://api.test/api/payments/vietqr') {
+      assert.deepEqual(JSON.parse(init.body), { amount: 50000 });
+      assert.equal(init.headers.Authorization, 'Bearer fake-token');
+      return response({
+        payment_id: paymentId,
+        amount: 50000,
+        description: 'VIBECLOUD-964152253',
+        qr_url: 'https://img.vietqr.io/image/ACB-1900636648-compact2.png?amount=50000&addInfo=VIBECLOUD-964152253&accountName=VIBECLOUD',
+        qr_data_url: null,
+        status: 'pending',
+      });
+    }
+    if (String(url) === `https://api.test/api/payments/${paymentId}`) {
+      return response({ payment: { id: paymentId, amount: 50000, description: 'VIBECLOUD-964152253', status: 'paid', updated_at: '2026-09-17T10:59:02Z' } });
+    }
+    if (String(url) === 'https://api.test/api/me') return response({ user: { credit_vnd: 50000, promo_credit_vnd: 20000, total_credit_vnd: 70000 } });
+    throw new Error(`unexpected ${url}`);
+  };
+  await withClient(fetchImpl, env, async (client) => {
+    const topup = parsedText(await client.callTool({ name: 'cloud_topup', arguments: { amount: 50000 } }));
+    assert.equal(topup.wallet, 'local');
+    assert.equal(topup.fallback_reason, 'monapay_unavailable');
+    assert.equal(topup.topup_id, paymentId);
+    assert.equal(topup.order_ref, 'VIBECLOUD-964152253');
+    assert.equal(topup.transfer_content, 'VIBECLOUD964152253');
+    assert.equal(topup.bank, 'ACB');
+    assert.equal(topup.bank_account, '1900636648');
+    assert.equal(topup.amount_vnd, 50000);
+    assert.equal(topup.qr_data_url, undefined);
+    assert.match(topup.qr_ascii, /^(██|  )+$/m);
+    assert.match(topup.qr_ascii_light, /^(██|  )+$/m);
+    assert.ok(topup.qr_payload.includes('0006970416'));
+    assert.ok(topup.qr_file.endsWith('topup-VIBECLOUD-964152253.png'));
+    assert.match(topup.qr_url, /^https:\/\/img\.vietqr\.io\//);
+
+    const status = parsedText(await client.callTool({ name: 'cloud_topup_status', arguments: { topup_id: paymentId } }));
+    assert.equal(status.status, 'paid');
+    assert.equal(status.paid, true);
+    assert.equal(status.wallet, 'local');
+    assert.equal(status.balance.balance_vnd, 70000);
+    assert.equal(status.balance.wallet, 'local');
+  });
+  assert.deepEqual(calls.slice(0, 2), ['POST https://billing.test/v1/topups', 'POST https://api.test/api/payments/vietqr']);
 });
 
 test('cloud_link ưu tiên Bearer MONA Pass trực tiếp, không tạo credential phụ', async () => {

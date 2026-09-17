@@ -72,7 +72,7 @@ try {
   await client.connect(transport);
   const listed = await client.listTools();
   const names = listed.tools.map((tool) => tool.name);
-  assert.equal(names.length, 145);
+  assert.equal(names.length, 156);
   for (const name of [
     'cloud_whoami', 'cloud_balance', 'cloud_topup', 'cloud_services',
     'monapay_create_qr', 'monapay_create_webhook',

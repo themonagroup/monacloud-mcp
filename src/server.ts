@@ -12,6 +12,7 @@ import { registerMailTools } from './mail.js';
 import { APP_FLOW, createVps, registerComputeTools } from './compute.js';
 import { pollJob } from './jobs.js';
 import { registerBaseTools } from './base.js';
+import { presentTopup } from './qr.js';
 
 export type ServerDependencies = {
   config?: Config;
@@ -105,8 +106,8 @@ export function createServer(dependencies: ServerDependencies = {}): McpServer {
   const clients = new CloudClients(config, auth, fetchImpl);
   const catalog = new TemplateCatalog(config, fetchImpl);
   const server = new McpServer(
-    { name: 'monacloud-mcp', version: '0.5.0' },
-    { instructions: `${ENTITY}\nDùng cloud_* cho tài khoản, ví và hạ tầng; monapay_* cho thu tiền; mail_* để gửi email giao dịch (MONA Mail); agent_* cho catalog. Không bao giờ yêu cầu mật khẩu sản phẩm. Đọc → ước tính → hỏi duyệt nếu chưa được duyệt → làm. Dừng khi cần DNS, nạp tiền, duyệt chi phí, OTP hoặc KYC. ${APP_FLOW}` },
+    { name: 'monacloud-mcp', version: '0.8.0' },
+    { instructions: `${ENTITY}\nDùng cloud_* cho tài khoản, ví và hạ tầng; monapay_* cho thu tiền; mail_* để gửi email giao dịch (MONA Mail); agent_* cho catalog. Không bao giờ yêu cầu mật khẩu sản phẩm. Đọc → ước tính → hỏi duyệt nếu chưa được duyệt → làm. Ví thiếu tiền: AI tự gọi cloud_topup, in nguyên khối qr_ascii (QR VietQR) cho người dùng quét bằng app ngân hàng ngay trong terminal, rồi cloud_topup_status tới khi paid; không bảo người dùng mở console để nạp. Dừng chờ người dùng ở: quét QR nạp, duyệt chi phí, thêm DNS, OTP hoặc KYC. ${APP_FLOW}` },
   );
 
   server.registerTool('cloud_whoami', {
@@ -129,16 +130,24 @@ export function createServer(dependencies: ServerDependencies = {}): McpServer {
   }, ({ cursor, limit }) => runTool(() => clients.ledger(cursor, limit)));
 
   server.registerTool('cloud_topup', {
-    title: 'Nạp ví bằng VietQR',
-    description: 'Tạo yêu cầu nạp ví và trả VietQR; đây là bước con người thanh toán hợp lệ.',
+    title: 'Nạp ví bằng VietQR ngay trong terminal',
+    description: 'AI tự tạo yêu cầu nạp ví và nhận QR VietQR: qr_ascii (khối đầy, in thẳng trong Claude Code/Codex/Gemini; nền sáng dùng qr_ascii_light), qr_file (PNG trên máy), qr_url (ảnh). Người dùng chỉ quét bằng app ngân hàng, không cần mở console. Tiền vào tự cộng ví; xác nhận bằng cloud_topup_status.',
     inputSchema: {
-      amount: z.number().int().min(1_000).max(1_000_000_000).describe('Số tiền nguyên VND'),
+      amount: z.number().int().min(10_000).max(500_000_000).describe('Số tiền nguyên VND, tối thiểu 10.000'),
       idempotency_key: z.string().min(1).max(255).optional(),
     },
   }, ({ amount, idempotency_key }) => runTool(async () => ({
-    ...asObject(await clients.topup(amount, idempotency_key)),
-    instructions: 'Mở app ngân hàng, quét qr_data_url và chuyển đúng số tiền/nội dung. Sau khi tiền vào, gọi cloud_balance.',
+    ...(await presentTopup(asObject(await clients.topup(amount, idempotency_key)), config.configDir)),
+    instructions: 'In NGUYÊN khối qr_ascii cho người dùng (terminal nền tối, mặc định; terminal nền sáng in qr_ascii_light; giữ nguyên ký tự, mỗi dòng một hàng, không bọc lại) kèm ngân hàng, số tài khoản, số tiền và nội dung chuyển khoản. Người dùng mở app ngân hàng quét QR trên màn hình; nếu terminal hiển thị mờ thì mở qr_file hoặc qr_url. Chuyển ĐÚNG số tiền và nội dung. Sau khi người dùng báo đã chuyển, gọi cloud_topup_status(topup_id) tới khi paid rồi làm tiếp; không tạo lại yêu cầu nạp khi chưa thấy tiền vào.',
   })));
+
+  server.registerTool('cloud_topup_status', {
+    title: 'Trạng thái yêu cầu nạp ví',
+    description: 'Đọc trạng thái một yêu cầu nạp (pending/paid) sau khi người dùng quét QR, kèm số dư hiện tại. Dùng để chờ tiền vào rồi tiếp tục việc đang làm.',
+    inputSchema: {
+      topup_id: z.string().min(1).max(128).describe('topup_id do cloud_topup trả'),
+    },
+  }, ({ topup_id }) => runTool(() => clients.topupStatus(topup_id)));
 
   server.registerTool('cloud_usage', {
     title: 'Chi phí MONA Cloud theo kỳ',
@@ -206,7 +215,7 @@ export function createServer(dependencies: ServerDependencies = {}): McpServer {
 
   server.registerTool('cloud_open_console', {
     title: 'Mở MONA Cloud Console',
-    description: 'Trả URL console chung để nạp ví, đổi budget hoặc quản lý tài khoản.',
+    description: 'Trả URL console khi người dùng muốn tự xem hoá đơn hoặc quản lý tài khoản. Nạp ví KHÔNG cần console: dùng cloud_topup (QR in trong terminal).',
   }, () => textResult({ url: config.consoleUrl, next_step: `Mở ${config.consoleUrl} trong trình duyệt.` }));
 
   server.registerTool('monapay_link', {
@@ -404,7 +413,7 @@ export function createServer(dependencies: ServerDependencies = {}): McpServer {
   }, async (uri) => ({ contents: [{
     uri: uri.href,
     mimeType: 'text/plain',
-    text: `${ENTITY}\n\n${APP_FLOW}\n\nHuman đăng ký MONA Pass, duyệt chi phí, thêm DNS khi cần, nạp tiền và cung cấp OTP/KYC bắt buộc. AI dùng MCP làm phần còn lại.\n\n- cloud_*: tài khoản, ví, ledger, usage, budget, VPS, database, Base beta thay Supabase, job, vòng đời service, plans, subscriptions, invoices/PDF, credit và apps từ git hoặc thư mục local (source=upload); cần DB/Supabase thì dùng cloud_base_create — chung account, khớp app deploy; cloud_app_detect hoàn toàn offline.\n- monapay_*: nối ngân hàng, checkout/QR, giao dịch, webhook và email.\n- mail_*: tài khoản, domain, API key, gửi mail, trạng thái, webhook, suppression (MONA Mail https://monamail.vn, API https://api.monamail.vn)\n- agent_*: catalog và deploy template.\n\nMONA Cloud: https://monacloud.vn\nCompute API: https://api.monacloud.vn\nMONA Pay: https://monapay.vn\n`,
+    text: `${ENTITY}\n\n${APP_FLOW}\n\nHuman đăng ký MONA Pass một lần, duyệt chi phí, thêm DNS khi cần, quét QR nạp ví do AI tạo bằng cloud_topup (in ngay trong terminal, không mở console) và cung cấp OTP/KYC bắt buộc. AI dùng MCP làm phần còn lại.\n\n- cloud_*: tài khoản, ví, ledger, usage, budget, VPS, database, Base beta thay Supabase, job, vòng đời service, plans, subscriptions, invoices/PDF, credit và apps từ git hoặc thư mục local (source=upload); cần DB/Supabase thì dùng cloud_base_create — chung account, khớp app deploy; cloud_app_detect hoàn toàn offline.\n- monapay_*: nối ngân hàng, checkout/QR, giao dịch, webhook và email.\n- mail_*: tài khoản, domain, API key, gửi mail, trạng thái, webhook, suppression (MONA Mail https://monamail.vn, API https://api.monamail.vn)\n- agent_*: catalog và deploy template.\n\nMONA Cloud: https://monacloud.vn\nCompute API: https://api.monacloud.vn\nMONA Pay: https://monapay.vn\n`,
   }] }));
 
   server.registerResource('monacloud-status', 'monacloud://status', {
@@ -433,7 +442,7 @@ export function createServer(dependencies: ServerDependencies = {}): McpServer {
     role: 'user',
     content: {
       type: 'text',
-      text: `Dựng app bán hàng ${app_name || 'của tôi'} bằng ${framework || 'stack phù hợp'} trên MONA Cloud. ${APP_FLOW}\nTheo đúng thứ tự:\n1. Gọi cloud_whoami, cloud_balance, cloud_plan_list, cloud_packages và cloud_prices. Báo ước tính và hỏi duyệt chi phí nếu chưa được duyệt. Nếu thiếu tiền, gọi cloud_topup rồi dừng để người dùng quét VietQR.\n2. Nếu dùng VPS gọi cloud_vps_create và cloud_db_create. Cần DB/Supabase thì ưu tiên cloud_base_create (beta) — chung account, khớp app deploy. Nếu deploy dự án dùng cloud_app_detect(local_dir), cloud_app_host_list rồi cloud_app_create(local_dir), sandbox trước nếu chưa có host. Poll từng job bằng cloud_job_status tới done/succeeded.\n3. Gọi monapay_link nếu MONA Pay còn ở lớp chuyển tiếp. Gọi monapay_whoami; nếu chưa có VA, nối ngân hàng bằng chuỗi monapay_link_bank_start → HỎI OTP → verify → notification_register → HỎI OTP lần 2 → verify. Không tự đoán OTP.\n4. Viết endpoint webhook có HMAC và idempotency theo transaction_code; đăng ký bằng monapay_create_webhook, bắn monapay_test_webhook và đọc monapay_webhook_logs.\n5. Tích hợp monapay_create_checkout hoặc monapay_create_qr vào app, chỉ giao hàng sau CHECKOUT_PAID.\n6. Với dự án local, dùng cloud_app_create(local_dir) sau khi duyệt ước tính; git dùng repo_url; kiểm cloud_app_get/cloud_app_logs và health rồi báo URL. Chỉ dùng VPS thủ công khi người dùng chọn. Không yêu cầu người dùng mở dashboard ngoài bước nạp tiền/OTP bắt buộc.`,
+      text: `Dựng app bán hàng ${app_name || 'của tôi'} bằng ${framework || 'stack phù hợp'} trên MONA Cloud. ${APP_FLOW}\nTheo đúng thứ tự:\n1. Gọi cloud_whoami, cloud_balance, cloud_plan_list, cloud_packages và cloud_prices. Báo ước tính và hỏi duyệt chi phí nếu chưa được duyệt. Nếu thiếu tiền, gọi cloud_topup, in nguyên khối qr_ascii kèm số tiền/nội dung để người dùng quét bằng app ngân hàng, rồi cloud_topup_status tới khi paid; không bảo người dùng mở console.\n2. Nếu dùng VPS gọi cloud_vps_create và cloud_db_create. Cần DB/Supabase thì ưu tiên cloud_base_create (beta) — chung account, khớp app deploy. Nếu deploy dự án dùng cloud_app_detect(local_dir), cloud_app_host_list rồi cloud_app_create(local_dir), sandbox trước nếu chưa có host. Poll từng job bằng cloud_job_status tới done/succeeded.\n3. Gọi monapay_link nếu MONA Pay còn ở lớp chuyển tiếp. Gọi monapay_whoami; nếu chưa có VA, nối ngân hàng bằng chuỗi monapay_link_bank_start → HỎI OTP → verify → notification_register → HỎI OTP lần 2 → verify. Không tự đoán OTP.\n4. Viết endpoint webhook có HMAC và idempotency theo transaction_code; đăng ký bằng monapay_create_webhook, bắn monapay_test_webhook và đọc monapay_webhook_logs.\n5. Tích hợp monapay_create_checkout hoặc monapay_create_qr vào app, chỉ giao hàng sau CHECKOUT_PAID.\n6. Với dự án local, dùng cloud_app_create(local_dir) sau khi duyệt ước tính; git dùng repo_url; kiểm cloud_app_get/cloud_app_logs và health rồi báo URL. Chỉ dùng VPS thủ công khi người dùng chọn. Không yêu cầu người dùng mở dashboard; nạp tiền cũng qua cloud_topup, người dùng chỉ quét QR và nhập OTP bắt buộc.`,
     },
   }] }));
 
@@ -457,7 +466,7 @@ export function createServer(dependencies: ServerDependencies = {}): McpServer {
 5. Gọi mail_api_key_create với name theo app và mode live; khi thử sandbox chọn mode test (mm_test_). Key chỉ trả một lần: ghi trực tiếp vào .env của app dưới tên MONAMAIL_API_KEY, bỏ .env khỏi git, không in key ra chat hoặc log. Chỉ báo prefix nếu cần nhận diện.
 6. Viết code gửi OTP ở server bằng SDK npm monamail: import { MonaMail } from 'monamail'; const monamail = new MonaMail(process.env.MONAMAIL_API_KEY); const { id } = await monamail.emails.send({ from: 'Tên app <noreply@DOMAIN_DA_VERIFY>', to: emailNguoiNhan, subject: 'Mã OTP', text: 'Mã OTP: ' + otp, tags: ['otp'], idempotency_key: requestId }); Thay placeholder bằng domain đã verify, sinh OTP ngẫu nhiên có hạn dùng và giới hạn số lần thử. Giữ cùng idempotency_key khi retry cùng yêu cầu trong 24 giờ. Gọi mail_status để kiểm kết quả.
 7. Viết HTTPS endpoint nhận email.bounced; xác minh HMAC trên timestamp và raw body bằng MonaMail.verifyWebhook, chống replay và xử lý idempotent theo event id. Gọi mail_webhook_create với events: ['email.bounced'], lưu secret riêng trong .env, rồi mail_webhook_test (payload thử là email.delivered). Kiểm suppression bằng mail_suppressions_list khi có bounce.
-Chỉ dừng hỏi người dùng ở bước thêm DNS hoặc nạp tiền. Nếu mail_plan_set trả insufficient_funds, gọi cloud_topup rồi chờ người dùng nạp và cloud_balance cập nhật. Dùng mail_plans để đọc giá hiện hành, không hard-code giá. Không yêu cầu mở dashboard để lấy API key.`,
+Chỉ dừng hỏi người dùng ở bước thêm DNS hoặc nạp tiền (quét QR). Nếu mail_plan_set trả insufficient_funds, gọi cloud_topup, in nguyên khối qr_ascii để người dùng quét bằng app ngân hàng, rồi cloud_topup_status tới khi paid và cloud_balance cập nhật. Dùng mail_plans để đọc giá hiện hành, không hard-code giá. Không yêu cầu mở dashboard để lấy API key.`,
     },
   }] }));
 

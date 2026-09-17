@@ -13,13 +13,13 @@ Prompt Claude Code: **“Đưa dự án này lên MONA Cloud, dùng thư mục h
 5. Sửa code local: `cloud_app_deploy({app_id, local_dir})`. Chỉ đổi env: `cloud_app_env_set` với map đầy đủ rồi `cloud_app_deploy({app_id})`. Timeout giữ job_id/app_id để tiếp tục, không tạo app mới.
 6. Cần DB/Supabase thì gọi `cloud_base_create` (beta): sandbox để lấy ước tính, duyệt chi phí rồi tạo thật. Base dùng chung account/ví MONA Cloud và khớp app deploy. Lưu credential vào secret store hoặc `.env` không commit; không log `anon_key`, `service_key`, `db_url`.
 
-Human chỉ cần đăng ký MONA Pass/device flow, duyệt chi phí một lần và nạp tiền khi hết credit 20k; DNS là bước thêm khi dùng domain riêng. AI làm các bước kỹ thuật còn lại. `.env*` kể cả `.env.example` không vào ZIP; truyền secret cần thiết qua `env`, không công khai. Xem [hợp đồng local deploy](local-deploy.md). VPS/database thủ công dưới đây chỉ dùng khi dự án cần hoặc người dùng chọn.
+Human chỉ cần đăng ký MONA Pass/device flow một lần, duyệt chi phí một lần và quét QR nạp ví do AI tạo (`cloud_topup`) khi hết credit 20k; DNS là bước thêm khi dùng domain riêng. AI làm các bước kỹ thuật còn lại. `.env*` kể cả `.env.example` không vào ZIP; truyền secret cần thiết qua `env`, không công khai. Xem [hợp đồng local deploy](local-deploy.md). VPS/database thủ công dưới đây chỉ dùng khi dự án cần hoặc người dùng chọn.
 
 ## Quy tắc vận hành
 
 1. Bắt đầu bằng `cloud_whoami`. Nếu nhận `login_required`, yêu cầu người dùng chạy `monacloud-mcp login`; không hỏi username hoặc password trong chat.
 2. Trước khi provision thật, đọc `cloud_balance`, `cloud_plan_list` hoặc `cloud_packages`/`cloud_prices`; báo ước tính và hỏi duyệt chi phí nếu chưa được duyệt. Với `sandbox: true`, không cần đọc hoặc nạp ví.
-3. Khi cần nạp, gọi `cloud_topup`; đưa nguyên `qr_data_url`, số tiền, nội dung và hạn thanh toán cho người dùng. Chỉ tiếp tục sau khi `cloud_balance` phản ánh tiền vào.
+3. Khi cần nạp, gọi `cloud_topup`; in NGUYÊN khối `qr_ascii` (không bọc lại) kèm ngân hàng, số tài khoản, số tiền, nội dung chuyển khoản; nhắc `qr_file`/`qr_url` nếu terminal hiển thị mờ. Không bảo người dùng mở console. Chỉ tiếp tục sau khi `cloud_topup_status` trả `paid` hoặc `cloud_balance` phản ánh tiền vào.
 4. Với OTP ngân hàng, dừng đúng sau `monapay_link_bank_start` và `monapay_notification_register`. Hỏi người dùng mã vừa nhận; không suy đoán, brute-force hoặc ghi OTP vào source/log.
 5. Mọi endpoint webhook phải xác minh HMAC, chống replay theo timestamp và idempotent theo `transaction_code`.
 6. Không giao hàng chỉ dựa vào browser redirect. Chỉ xác nhận đơn sau webhook `CHECKOUT_PAID` hoặc đối soát server-side.
@@ -175,7 +175,7 @@ const { id } = await monamail.emails.send({
 
 `emailNguoiNhan`, `otp` và `requestId` lấy từ luồng xác thực của app. Dùng `MonaMail.verifyWebhook({ secret, timestamp, body, signature })` kiểm `X-Mona-Signature` trên `"<X-Mona-Timestamp>.<raw_body>"`. Chống replay theo timestamp, xử lý event một lần theo payload `id`/`X-Mona-Event-Id`.
 
-Ranh giới human của luồng Mail sau đăng nhập là **thêm DNS và nạp tiền**. Khi `mail_plan_set` trả `insufficient_funds`, gọi `cloud_topup`, đưa VietQR cho user và chờ `cloud_balance` cập nhật trước khi thử lại. Không yêu cầu user mở dashboard lấy API key. Lỗi Mail giữ `code`, `message`, `next_step`, `request_id` từ API, gồm `domain_not_verified`, `quota_exceeded`, `budget_exceeded` và `idempotency_conflict`.
+Ranh giới human của luồng Mail sau đăng nhập là **thêm DNS và quét QR nạp tiền**. Khi `mail_plan_set` trả `insufficient_funds`, gọi `cloud_topup`, in `qr_ascii` cho user quét và chờ `cloud_topup_status` paid hoặc `cloud_balance` cập nhật trước khi thử lại. Không yêu cầu user mở dashboard lấy API key. Lỗi Mail giữ `code`, `message`, `next_step`, `request_id` từ API, gồm `domain_not_verified`, `quota_exceeded`, `budget_exceeded` và `idempotency_conflict`.
 
 ### Sandbox và idempotency Mail
 
@@ -192,7 +192,7 @@ Ranh giới human của luồng Mail sau đăng nhập là **thêm DNS và nạp
 {
   "code": "insufficient_funds",
   "message": "Ví thiếu tiền...",
-  "next_step": "Nạp ví tại https://monacloud.vn/console rồi gọi lại tool."
+  "next_step": "Gọi cloud_topup để lấy QR nạp ví rồi gọi lại tool."
 }
 ```
 

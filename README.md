@@ -2,7 +2,11 @@
 
 `monacloud-mcp` là MCP hợp nhất của MONA Cloud: cài một lần, đăng nhập một MONA Pass và dùng chung ví VND để quản lý tài khoản, chạy app/VPS, tạo Base beta thay Supabase, tích hợp MONA Pay, gửi email giao dịch bằng MONA Mail và đọc catalog MONA Agent ngay trong Claude Code, Codex hoặc Cursor.
 
-Human đăng ký, duyệt chi phí, thêm DNS khi cần, nạp tiền và cung cấp OTP/KYC khi bắt buộc. Các bước tạo tài nguyên, đọc trạng thái, cấu hình webhook, test và deploy được thiết kế để AI agent làm qua MCP.
+Human đăng ký MONA Pass một lần, duyệt chi phí, thêm DNS khi cần, quét QR nạp ví do AI tạo và cung cấp OTP/KYC khi bắt buộc. Các bước tạo yêu cầu nạp, tạo tài nguyên, đọc trạng thái, cấu hình webhook, test và deploy được thiết kế để AI agent làm qua MCP.
+
+## 0.8.0 — Nạp ví ngay trong terminal
+
+Ví thiếu tiền thì AI gọi `cloud_topup(amount)`; MCP trả **`qr_ascii`** (QR VietQR chuẩn EMVCo/NAPAS in bằng khối đầy `██`, Claude Code/Codex/Gemini CLI hiện được ngay; terminal nền sáng dùng `qr_ascii_light`, bản gọn `qr_ascii_small`; đã giải mã được bằng ZBar và OpenCV ở cả hai nền), `qr_file` (PNG tại `~/.config/monacloud/`), `qr_url` (ảnh VietQR) cùng ngân hàng, số tài khoản, số tiền, nội dung chuyển khoản. Người dùng mở app ngân hàng quét màn hình, tiền vào tự cộng ví; AI gọi `cloud_topup_status(topup_id)` tới khi `paid` rồi làm tiếp. Không còn bảo người dùng mở console để nạp; base64 không còn nằm trong text (tiết kiệm 15–25k token mỗi lần). Khi ví chung (`billing`) chưa nhận token hoặc merchant MONA Pay chưa cấu hình, `cloud_topup` tự chuyển sang đường compute `/api/payments/vietqr` (ví local, prefix VIBECLOUD, báo có tự cộng).
 
 ## 0.5.0 — MONA Base beta
 
@@ -12,7 +16,7 @@ Thêm `cloud_base_create/list/get/delete/credentials` cùng alias `vibecloud_bas
 
 Prompt Claude Code: **“Đưa dự án này lên MONA Cloud, dùng thư mục hiện tại”**.
 
-AI làm 99%: `cloud_app_detect(local_dir)` offline → đọc host và giá → sandbox nếu cần host mới → hỏi duyệt chi phí một lần → `cloud_app_create(local_dir)` → kiểm và trả URL. Có domain riêng thì `cloud_app_domain_add` và hướng dẫn CNAME. Human đăng ký MONA Pass qua device flow và nạp ví khi hết credit 20k.
+AI làm 99%: `cloud_app_detect(local_dir)` offline → đọc host và giá → sandbox nếu cần host mới → hỏi duyệt chi phí một lần → `cloud_app_create(local_dir)` → kiểm và trả URL. Có domain riêng thì `cloud_app_domain_add` và hướng dẫn CNAME. Human đăng ký MONA Pass qua device flow; hết credit 20k thì AI gọi `cloud_topup` và in QR, human chỉ quét.
 
 | Tool | Đầu vào / hành vi 0.4.0 |
 |---|---|
@@ -94,7 +98,8 @@ Tên tool dùng `snake_case` để giữ tương thích với prompt MONA Pay c�
 | `cloud_whoami` | Hồ sơ MONA Pass hiện tại |
 | `cloud_balance` | Số dư ví VND chung |
 | `cloud_ledger` | Ledger nạp/trừ/hoàn tiền có cursor |
-| `cloud_topup(amount)` | Tạo yêu cầu nạp, trả `qr_data_url` và hướng dẫn VietQR |
+| `cloud_topup(amount)` | Tạo yêu cầu nạp, trả `qr_ascii` (in trong terminal), `qr_file`, `qr_url`, ngân hàng/số TK/số tiền/nội dung; tự fallback compute khi ví chung chưa sẵn sàng |
+| `cloud_topup_status(topup_id)` | Trạng thái yêu cầu nạp (pending/paid) kèm số dư, để chờ tiền vào rồi làm tiếp |
 | `cloud_usage(period)` | Usage theo tháng, có thể lọc sản phẩm |
 | `cloud_services` | Gom VPS/database, VA và webhook MONA Pay |
 | `cloud_budget_set` / `cloud_budget_get` | Đặt và đọc budget theo product/project/token |
@@ -211,7 +216,7 @@ Trước lệnh compute MONA Cloud thật có thể phát sinh tiền, MCP đọ
 {
   "code": "budget_exceeded",
   "message": "Ví thiếu 20.000 đ hoặc đã chạm giới hạn chi tiêu.",
-  "next_step": "Nạp ví hoặc tăng ngân sách tại https://monacloud.vn/console rồi gọi lại tool.",
+  "next_step": "Gọi cloud_topup để lấy QR nạp ví hoặc cloud_budget_set để tăng ngân sách rồi gọi lại tool.",
   "request_id": "req_..."
 }
 ```
@@ -227,7 +232,7 @@ Người dùng nói:
 Agent thực hiện:
 
 1. `cloud_whoami` → `cloud_balance` → `cloud_packages`.
-2. Nếu ví thiếu: `cloud_topup(200000)`, đưa QR cho người dùng và chờ xác nhận.
+2. Nếu ví thiếu: `cloud_topup(200000)`, in nguyên khối `qr_ascii` cho người dùng quét bằng app ngân hàng, rồi `cloud_topup_status` tới khi `paid`.
 3. `cloud_vps_create` + `cloud_db_create`, sau đó `cloud_job_status` cho từng job.
 4. `monapay_link` nếu adapter chuyển tiếp chưa có credential; `monapay_whoami` để kiểm tra VA.
 5. Nếu chưa có VA: bắt đầu nối ACB, hỏi người dùng OTP đúng hai điểm bắt buộc, không tự đoán.

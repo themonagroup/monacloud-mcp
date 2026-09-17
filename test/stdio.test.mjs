@@ -22,11 +22,13 @@ test('stdio JSON-RPC tools/list và cloud_whoami chạy bằng token giả', asy
   );
   assert.match(stdout, /STDIO PASS/);
   const summary = JSON.parse(stdout.trim().slice('STDIO PASS '.length));
-  assert.equal(summary.tools_count, 83 + 20 + 32 + 10, '0.5.0 thêm Base và alias');
-  assert.equal(summary.version, '0.5.0');
+  assert.equal(summary.tools_count, 83 + 30 + 32 + 10 + 1, '0.6/0.7 thêm 10 mail_inbox_*, 0.8.0 thêm cloud_topup_status');
+  assert.equal(summary.version, '0.8.0');
   assert.deepEqual(summary.mail_tools, [
     'mail_account', 'mail_plans', 'mail_plan_set', 'mail_send', 'mail_status', 'mail_list',
     'mail_domain_add', 'mail_domain_verify', 'mail_domain_cloudflare', 'mail_domains_list',
+    'mail_inbox_batch', 'mail_inbox_create', 'mail_inbox_delete', 'mail_inbox_get', 'mail_inbox_list',
+    'mail_inbox_message', 'mail_inbox_messages', 'mail_inbox_reply', 'mail_inbox_update', 'mail_inbox_wait',
     'mail_api_key_create', 'mail_api_keys_list', 'mail_api_key_revoke',
     'mail_webhook_create', 'mail_webhooks_list', 'mail_webhook_test',
     'mail_suppressions_list', 'mail_suppression_remove', 'mail_template_create', 'mail_stats',

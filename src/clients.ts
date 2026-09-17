@@ -64,7 +64,7 @@ export class CloudClients {
         ? 'insufficient_funds'
         : pickString(objects, ['code']) || error.code;
       const fallback = code === 'insufficient_funds'
-        ? `Gọi cloud_topup để nạp ví, chờ cloud_balance cập nhật rồi thử lại. Console: ${this.config.consoleUrl}.`
+        ? 'Gọi cloud_topup để lấy QR nạp ví (in qr_ascii cho người dùng quét), chờ cloud_topup_status paid hoặc cloud_balance cập nhật rồi thử lại.'
         : code === 'quota_exceeded'
           ? 'Gọi mail_plans rồi mail_plan_set để đổi gói trước khi gửi tiếp.'
           : code === 'budget_exceeded'
@@ -99,9 +99,26 @@ export class CloudClients {
         currency: 'VND',
         wallet: 'local',
         source: '/api/me',
-        note: 'Số dư ví local MONA Cloud compute (billing.monacloud.vn không nhận token này). Nạp tại console → ví. / Local compute wallet balance.',
+        note: 'Số dư ví local MONA Cloud compute (billing.monacloud.vn không nhận token này). Thiếu tiền thì gọi cloud_topup: QR VietQR in ngay trong terminal, người dùng quét bằng app ngân hàng, không cần mở console. / Local compute wallet balance; top up with cloud_topup.',
       };
     }
+  }
+
+  /** Số dư ví local compute (nơi yêu cầu nạp qua /api/payments/vietqr được cộng), đọc từ /api/me. */
+  async localBalance(): Promise<JsonObject> {
+    const root = asObject(unwrapData(await this.vibecloud('/api/me')));
+    const me = asObject(root.user ?? root);
+    const credit = Number(me.credit_vnd ?? 0);
+    const promo = Number(me.promo_credit_vnd ?? 0);
+    const total = me.total_credit_vnd !== undefined ? Number(me.total_credit_vnd) : credit + promo;
+    return {
+      balance_vnd: Number.isFinite(total) ? total : 0,
+      credit_vnd: Number.isFinite(credit) ? credit : 0,
+      promo_credit_vnd: Number.isFinite(promo) ? promo : 0,
+      currency: 'VND',
+      wallet: 'local',
+      source: '/api/me',
+    };
   }
 
   ledger(cursor?: string, limit = 50) {
@@ -112,12 +129,67 @@ export class CloudClients {
     return this.billing('/v1/usage', { query: { period, product } });
   }
 
-  topup(amount: number, idempotencyKey?: string) {
-    return this.billing('/v1/topups', {
-      method: 'POST',
-      headers: { 'Idempotency-Key': idempotencyKey || `mcp-topup-${randomUUID()}` },
-      body: { amount_vnd: amount },
-    });
+  /**
+   * Tạo yêu cầu nạp ví. Ưu tiên ví chung (billing /v1/topups → MONA Pay); khi billing chưa nhận token
+   * hoặc merchant MONA Pay chưa cấu hình (401/403/404/502/503) thì tạo qua compute /api/payments/vietqr
+   * (ví local, prefix VIBECLOUD, báo có tự cộng). Người dùng chỉ quét QR; không cần console.
+   */
+  async topup(amount: number, idempotencyKey?: string): Promise<JsonObject> {
+    const key = idempotencyKey || `mcp-topup-${randomUUID()}`;
+    try {
+      const central = asObject(unwrapData(await this.billing('/v1/topups', {
+        method: 'POST',
+        headers: { 'Idempotency-Key': key },
+        body: { amount_vnd: amount },
+      })));
+      return { amount_vnd: amount, ...central, wallet: 'central', source: '/v1/topups' };
+    } catch (error) {
+      const status = error instanceof CloudError ? error.status ?? 0 : 0;
+      if (!(error instanceof CloudError) || ![401, 403, 404, 502, 503].includes(status)) throw error;
+      const local = asObject(unwrapData(await this.vibecloud('/api/payments/vietqr', {
+        method: 'POST',
+        body: { amount },
+      })));
+      return {
+        topup_id: local.payment_id,
+        order_ref: local.description,
+        amount_vnd: typeof local.amount === 'number' ? local.amount : amount,
+        status: local.status ?? 'pending',
+        qr_url: local.qr_url,
+        qr_data_url: local.qr_data_url,
+        wallet: 'local',
+        source: '/api/payments/vietqr',
+        fallback_reason: error.code,
+      };
+    }
+  }
+
+  /** Trạng thái một yêu cầu nạp (pending/paid) kèm số dư hiện tại, để AI chờ tiền vào rồi làm tiếp. */
+  async topupStatus(topupId: string): Promise<JsonObject> {
+    if (/^[0-9a-f]{24}$/i.test(topupId)) {
+      const root = asObject(unwrapData(await this.vibecloud(`/api/payments/${encodeURIComponent(topupId)}`)));
+      const payment = asObject(root.payment ?? root);
+      const status = typeof payment.status === 'string' ? payment.status : 'pending';
+      return {
+        topup_id: topupId,
+        status,
+        paid: status === 'paid',
+        amount_vnd: payment.amount,
+        order_ref: payment.description,
+        updated_at: payment.updated_at ?? payment.paid_at,
+        wallet: 'local',
+        balance: await this.localBalance(),
+      };
+    }
+    const ledger = await this.ledger(undefined, 100).catch(() => undefined);
+    const paid = ledger !== undefined && JSON.stringify(ledger).includes(topupId);
+    return {
+      topup_id: topupId,
+      status: paid ? 'paid' : 'pending',
+      paid,
+      wallet: 'central',
+      balance: await this.balance(),
+    };
   }
 
   budgetSet(body: { scope: string; scope_id: string; limit_vnd: number; period: string }) {
@@ -149,7 +221,7 @@ export class CloudClients {
       throw new CloudError(
         'insufficient_funds',
         `Ví thiếu tiền: có ${balance} đ${requiredVnd === undefined ? '' : `, cần ${requiredVnd} đ`}.`,
-        `Gọi cloud_topup để nạp ví tại ${this.config.consoleUrl} rồi gọi lại tool.`,
+        'Gọi cloud_topup để lấy QR nạp ví in ngay trong terminal; người dùng quét xong thì gọi lại tool.',
       );
     }
     return current;
