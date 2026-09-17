@@ -6,7 +6,7 @@ Human đăng ký MONA Pass một lần, duyệt chi phí, thêm DNS khi cần, q
 
 ## 0.8.1 — luật nạp ví đứng đầu instructions
 
-Codex chỉ chắc chắn đọc 512 ký tự đầu của `instructions` MCP, nên luật "ví thiếu → AI tự gọi `cloud_topup`, in QR, không bảo mở console" được đưa lên đầu; mô tả hệ và APP_FLOW đặt sau. Kiểm thử 17/09: Claude Code (sonnet) và Gemini (Antigravity CLI) tự gọi `cloud_topup` và in QR khi người dùng nói "ví hết tiền, nạp 50k"; Codex `exec` cần cho phép gọi MCP (mặc định chặn approval) rồi cũng làm được.
+Codex chỉ chắc chắn đọc 512 ký tự đầu của `instructions` MCP, nên luật "ví thiếu → AI tự gọi `cloud_topup`, in QR, không bảo mở console" được đưa lên đầu; mô tả hệ và APP_FLOW đặt sau. Kiểm thử 17/09: Claude Code (sonnet) và Gemini (Antigravity CLI) tự gọi `cloud_topup` và in QR khi người dùng nói "ví hết tiền, nạp 50k"; Codex chạy headless (`codex exec`) mặc định chặn mọi lời gọi MCP theo approval policy; thêm `--approve-for-me` thì Codex cũng tự gọi `cloud_topup` và in QR (kiểm 17/09). Codex tương tác thì duyệt lời gọi tool như bình thường.
 
 ## 0.8.0 — Nạp ví ngay trong terminal
 
