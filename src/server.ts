@@ -12,6 +12,7 @@ import { registerMailTools } from './mail.js';
 import { APP_FLOW, createVps, registerComputeTools } from './compute.js';
 import { pollJob } from './jobs.js';
 import { registerBaseTools } from './base.js';
+import { registerDomainTools } from './domains.js';
 import { presentTopup } from './qr.js';
 
 export type ServerDependencies = {
@@ -365,6 +366,7 @@ export function createServer(dependencies: ServerDependencies = {}): McpServer {
   registerComputeTools(server, clients);
   registerBaseTools(server, clients);
   registerMailTools(server, clients, config);
+  registerDomainTools(server, clients);
 
   server.registerTool('agent_templates_list', {
     title: 'Catalog MONA Agent',
