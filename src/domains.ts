@@ -196,6 +196,23 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
     }).strict(),
   }, ({ id }) => runTool(() => clients.vibecloud(`/api/domains/${encodeURIComponent(id)}/health`)));
 
+  server.registerTool('cloud_domain_renew', {
+    title: 'Gia hạn tên miền (trừ ví VND)',
+    description: [
+      'Gia hạn tên miền đã mua qua MONA Cloud. LUÔN gọi dry_run=true trước để lấy price_vnd (đã VAT), HỎI người dùng duyệt số tiền, rồi gọi lại dry_run=false — lúc đó trừ ví VND và gia hạn thật ở registrar.',
+      '402 insufficient_balance → cloud_topup in QR cho người dùng quét, chờ paid rồi gọi lại. 502 retryable → tiền đang giữ chờ đối soát, đừng gọi lại liên tục; báo người dùng.',
+    ].join(' '),
+    inputSchema: z.object({
+      id: objectId.describe('Order ID tên miền (từ cloud_domain_list / cloud_domain_buy).'),
+      billing_cycle: z.number().int().min(12).max(120).describe('Số tháng gia hạn, bội số 12 (12 = 1 năm).'),
+      dry_run: z.boolean().optional().describe('true = chỉ báo giá, không trừ tiền. Mặc định true để an toàn.'),
+    }).strict(),
+  }, ({ id, billing_cycle, dry_run }) => runTool(() => clients.guardedVibecloud(
+    `/api/domains/${encodeURIComponent(id)}/renew`,
+    { method: 'POST', body: { billing_cycle, dry_run: dry_run !== false } },
+    false,
+  )));
+
   server.registerTool('cloud_domain_wait', {
     title: 'Chờ tên miền active',
     description: 'Long-poll cho đến khi tên miền chuyển sang active/failed (mặc định timeout=60s). Dùng sau cloud_domain_buy để chờ MONA Host xử lý.',

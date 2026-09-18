@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.1 (2026-09-18)
+
+### Added
+- `cloud_domain_renew` — gia hạn tên miền: dry_run báo `price_vnd` → hỏi duyệt → trừ ví VND + gia hạn thật (backend giờ THU tiền khách khi gia hạn; trước đó gọi thẳng registrar).
+
+
 ## 0.10.0 (2026-09-18)
 
 ### Added — mua tên miền TRƯỚC khi có tài khoản (guest → reserve → claim, spec monadomain §12)

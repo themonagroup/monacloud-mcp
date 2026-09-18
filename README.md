@@ -164,6 +164,7 @@ AI tra tên, báo giá VND đã VAT, hỏi chủ thể, mua .vn/.com bằng ví 
 | `cloud_domain_registrant_get` / `cloud_domain_registrant_set` | Chủ thể đăng ký (.vn cá nhân cần CCCD, tổ chức cần MST) |
 | `cloud_domain_buy` | Mua thẳng bằng ví khi đã đăng nhập; 402 → `cloud_topup` in QR |
 | `cloud_domain_verify_start` / `cloud_domain_verify_status` / `cloud_domain_wait` | Hồ sơ .vn + chờ active |
+| `cloud_domain_renew` | Gia hạn: dry_run báo giá → duyệt → trừ ví VND |
 | `cloud_domain_dns_*` / `cloud_domain_ns_set` / `cloud_domain_attach` / `cloud_domain_health` | DNS, NS, gắn app, sức khoẻ |
 
 Giữ chỗ chỉ khoá tên trong hệ MONA Cloud (`hold_scope=monacloud`), không giữ ở registry — tên đẹp thì trả sớm. Không gọi registrar tới khi tiền vào và có tài khoản nhận. Prompt `mua-ten-mien-monacloud(keyword?, app_id?)` dẫn trọn luồng.

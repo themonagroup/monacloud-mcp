@@ -433,3 +433,27 @@ test('guest: cloud_domain_reserve_release DELETEs with ?t=', async () => {
     assert.equal(result.status, 'released');
   });
 });
+
+test('cloud_domain_renew defaults to dry_run=true and posts billing_cycle', async () => {
+  await fixture((req) => {
+    if (req.path === '/v1/balance' || req.path === '/api/me') return json({ balance_vnd: 5_000_000, credit_vnd: 5_000_000 });
+    assert.equal(req.method, 'POST');
+    assert.equal(req.path, '/api/domains/aaaaaaaaaaaaaaaaaaaaaaaa/renew');
+    assert.deepEqual(req.body, { billing_cycle: 12, dry_run: true });
+    return json({ total_amount: 756000, price_vnd: 756000, dry_run: true });
+  }, async (client) => {
+    const result = data(await call(client, 'cloud_domain_renew', { id: 'aaaaaaaaaaaaaaaaaaaaaaaa', billing_cycle: 12 }));
+    assert.equal(result.price_vnd, 756000);
+  });
+});
+
+test('cloud_domain_renew dry_run=false charges', async () => {
+  await fixture((req) => {
+    if (req.path === '/v1/balance' || req.path === '/api/me') return json({ balance_vnd: 5_000_000, credit_vnd: 5_000_000 });
+    assert.deepEqual(req.body, { billing_cycle: 24, dry_run: false });
+    return json({ charged_vnd: 1512000, status: 'renewed', renewal_id: 'bbbbbbbbbbbbbbbbbbbbbbbb' });
+  }, async (client) => {
+    const result = data(await call(client, 'cloud_domain_renew', { id: 'aaaaaaaaaaaaaaaaaaaaaaaa', billing_cycle: 24, dry_run: false }));
+    assert.equal(result.status, 'renewed');
+  });
+});
