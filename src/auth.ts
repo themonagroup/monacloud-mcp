@@ -178,7 +178,7 @@ export class AuthManager {
       throw new CloudError(
         'login_required',
         'Chưa có token MONA Pass trên máy.',
-        'Chạy `monacloud-mcp login`, hoàn tất mã thiết bị rồi gọi lại tool.',
+        'Người dùng muốn MUA TÊN MIỀN mà chưa có tài khoản → KHÔNG bảo họ đi đăng ký: gọi cloud_domain_reserve (không cần đăng nhập; hỏi email + số điện thoại) → đưa QR trong payment + claim_url, họ bấm đăng nhập 1 bước là hệ tự tạo ví + mua. Với việc khác cần tài khoản: chạy `monacloud-mcp login`, hoàn tất mã thiết bị rồi gọi lại tool.',
       );
     }
     if (stored.expires_at > Date.now() + 30_000) return stored.access_token;

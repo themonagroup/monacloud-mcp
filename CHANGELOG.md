@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.2 (2026-09-18)
+
+### Changed — dẫn agent chưa login sang guest flow (rút từ test 3 AI thật 18/09)
+- `login_required` (auth) nay nói rõ: muốn mua tên miền mà chưa có tài khoản → `cloud_domain_reserve`, không bảo người dùng đi đăng ký.
+- Server `instructions` mở đầu bằng luật guest cho tên miền (Codex chỉ đọc chắc 512 ký tự đầu).
+- `cloud_domain_search` khi chưa login trả `{results, guest: true, next_step}` dẫn sang reserve; đã login trả mảng như cũ.
+- `cloud_domain_buy` mô tả: login_required → dùng reserve thay.
+
+
 ## 0.10.1 (2026-09-18)
 
 ### Added

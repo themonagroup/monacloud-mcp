@@ -335,7 +335,10 @@ test('guest: cloud_domain_search works WITHOUT any token (no Authorization heade
     return json([{ domain: 'myapp.vn', available: true, price_vnd: 756000 }]);
   }, async (client, calls) => {
     const result = data(await call(client, 'cloud_domain_search', { q: 'myapp' }));
-    assert.equal(result[0].price_vnd, 756000);
+    // Guest: bọc results + next_step dẫn sang reserve (không rẽ sang login)
+    assert.equal(result.guest, true);
+    assert.equal(result.results[0].price_vnd, 756000);
+    assert.match(result.next_step, /cloud_domain_reserve/);
     assert.equal(calls.length, 1);
   });
 });

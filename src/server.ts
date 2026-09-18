@@ -109,7 +109,7 @@ export function createServer(dependencies: ServerDependencies = {}): McpServer {
   const server = new McpServer(
     { name: 'monacloud-mcp', version: '0.8.1' },
     // Codex chỉ chắc chắn đọc 512 ký tự đầu của instructions → luật quan trọng nhất đặt trước, mô tả hệ đặt sau.
-    { instructions: `Ví thiếu tiền: AI tự gọi cloud_topup, in nguyên khối qr_ascii (QR VietQR) cho người dùng quét bằng app ngân hàng ngay trong terminal, rồi cloud_topup_status tới khi paid; không bảo người dùng mở console để nạp. Dùng cloud_* cho tài khoản, ví và hạ tầng; monapay_* cho thu tiền; mail_* để gửi email giao dịch (MONA Mail); agent_* cho catalog. Không bao giờ yêu cầu mật khẩu sản phẩm. Đọc → ước tính → hỏi duyệt nếu chưa được duyệt → làm. Dừng chờ người dùng ở: quét QR nạp, duyệt chi phí, thêm DNS, OTP hoặc KYC.\n${ENTITY}\n${APP_FLOW}` },
+    { instructions: `Tên miền khi người dùng CHƯA có tài khoản: cloud_domain_search (không cần login) → cloud_domain_reserve (email + sđt) → đưa QR + claim_url, KHÔNG bảo đi đăng ký/mở web; có tài khoản rồi thì cloud_domain_claim/cloud_domain_buy. Ví thiếu tiền: AI tự gọi cloud_topup, in nguyên khối qr_ascii (QR VietQR) cho người dùng quét bằng app ngân hàng ngay trong terminal, rồi cloud_topup_status tới khi paid; không bảo người dùng mở console để nạp. Dùng cloud_* cho tài khoản, ví và hạ tầng; monapay_* cho thu tiền; mail_* để gửi email giao dịch (MONA Mail); agent_* cho catalog. Không bao giờ yêu cầu mật khẩu sản phẩm. Đọc → ước tính → hỏi duyệt nếu chưa được duyệt → làm. Dừng chờ người dùng ở: quét QR nạp, duyệt chi phí, thêm DNS, OTP hoặc KYC.\n${ENTITY}\n${APP_FLOW}` },
   );
 
   server.registerTool('cloud_whoami', {

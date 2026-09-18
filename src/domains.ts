@@ -42,7 +42,16 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
     const params = new URLSearchParams({ q });
     if (tlds) params.set('tlds', tlds);
     if (years) params.set('years', String(years));
-    return clients.vibecloudGuestOk(`/api/domains/search?${params}`);
+    const results = await clients.vibecloudGuestOk<unknown[]>(`/api/domains/search?${params}`);
+    if (await clients.isGuest()) {
+      // Chưa login: dẫn thẳng sang reserve để agent không rẽ sang "login/đăng ký" (test 18/09: Gemini rẽ sai)
+      return {
+        results,
+        guest: true,
+        next_step: 'Người dùng chưa đăng nhập MONA Pass. Muốn mua: gọi cloud_domain_reserve (hỏi email + số điện thoại, xác nhận chính tả) → đưa QR trong payment + claim_url. KHÔNG bảo người dùng đi đăng ký hay mở web trước.',
+      };
+    }
+    return results;
   }));
 
   server.registerTool('cloud_domain_registrant_get', {
@@ -72,6 +81,7 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
       'Kết quả có suggested_next → gợi ý người dùng deploy app lên MONA Cloud (cloud_app_create) và gắn domain (cloud_domain_attach).',
       '.vn sau khi mua ở trạng thái pending_verification → dùng cloud_domain_verify_start (link eKYC/bản khai) rồi cloud_domain_wait.',
       'sandbox=true: giả lập 0đ, không mua thật.',
+      'Người dùng CHƯA có tài khoản / login_required → KHÔNG bảo đi đăng ký; dùng cloud_domain_reserve thay cho tool này.',
     ].join(' '),
     inputSchema: z.object({
       name: domainName,

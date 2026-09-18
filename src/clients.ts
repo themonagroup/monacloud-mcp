@@ -264,6 +264,17 @@ export class CloudClients {
    * Có token trên máy thì vẫn gửi (để backend ghi lead + gắn chủ); chưa login thì đi ẩn danh
    * hoặc dùng guest_token của reservation — KHÔNG ném login_required.
    */
+  /** true khi máy chưa có token nào (env, links, MONA Pass) — agent đang ở tư cách guest. */
+  async isGuest(): Promise<boolean> {
+    try {
+      await this.vibecloudToken();
+      return false;
+    } catch (error) {
+      if (error instanceof CloudError && error.code === 'login_required') return true;
+      throw error;
+    }
+  }
+
   async vibecloudGuestOk<T = unknown>(
     path: string,
     options: {
