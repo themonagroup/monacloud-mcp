@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.3 (2026-09-18)
+
+### Fixed
+- `serverInfo.version` đọc từ package.json (từng hardcode 0.8.1).
+
+
 ## 0.10.2 (2026-09-18)
 
 ### Changed — dẫn agent chưa login sang guest flow (rút từ test 3 AI thật 18/09)
