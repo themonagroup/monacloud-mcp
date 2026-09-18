@@ -308,7 +308,7 @@ test('Mail xuất hiện trong instructions, llms, health và prompt OTP zero-da
     assert.equal(init.headers.Authorization, undefined, 'Health là public');
     return response({ status: 'ok' });
   }, mailEnv, async (client) => {
-    assert.equal(client.getServerVersion().version, '0.8.1');
+    assert.equal(client.getServerVersion().version, JSON.parse(await import('node:fs/promises').then((m) => m.readFile(new URL('../package.json', import.meta.url), 'utf8'))).version);
     assert.match(client.getInstructions(), /mail_\* để gửi email giao dịch \(MONA Mail\)/);
     const llms = await client.readResource({ uri: 'monacloud://llms' });
     assert.match(llms.contents[0].text, /- mail_\*: tài khoản, domain, API key, gửi mail, trạng thái, webhook, suppression \(MONA Mail https:\/\/monamail.vn, API https:\/\/api.monamail.vn\)/);
