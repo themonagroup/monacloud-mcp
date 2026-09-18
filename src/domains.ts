@@ -72,7 +72,7 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
   server.registerTool('cloud_domain_buy', {
     title: 'Mua tên miền',
     description: [
-      'Mua tên miền và trừ ví VND — làm trọn trong phiên, không bảo người dùng mở web. Trước khi gọi:',
+      'Mua tên miền và trừ ví VND — làm trọn trong phiên; người dùng chỉ quét QR và xác nhận, không phải đăng ký trước hay tự làm trên web. Trước khi gọi:',
       '1. cloud_domain_search để xem giá + còn trống.',
       '2. Hỏi người dùng xác nhận chính tả tên miền (vd: "Đăng ký example.vn nhé?") → spelling_confirmed. WHOIS không sửa được sau khi mua.',
       '3. Hỏi duyệt chi phí (giá từ search).',
@@ -314,7 +314,7 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
 
   server.registerPrompt('mua-ten-mien-monacloud', {
     title: 'Mua tên miền cho app — làm trọn trong phiên (gợi ý, hỏi info, bắn QR, mua)',
-    description: 'AI tự tra + báo giá + hỏi thông tin chủ thể + nạp ví bằng QR trong terminal + mua + xác thực .vn, không bảo người dùng mở web.',
+    description: 'AI tự tra + báo giá + hỏi thông tin chủ thể + nạp ví bằng QR trong terminal + mua + xác thực .vn; người dùng chỉ quét QR và xác nhận, không phải đăng ký trước.',
     argsSchema: {
       keyword: z.string().optional(),
       app_id: z.string().optional(),
@@ -323,7 +323,7 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
     role: 'user',
     content: {
       type: 'text',
-      text: `Mua giúp tôi tên miền${keyword ? ` quanh "${keyword}"` : ''} bằng MONA Cloud, làm trọn ngay trong phiên này, đừng bảo tôi mở web:
+      text: `Mua giúp tôi tên miền${keyword ? ` quanh "${keyword}"` : ''} bằng MONA Cloud, làm trọn ngay trong phiên này; tôi chỉ quét QR và xác nhận, đừng bắt tôi đăng ký trước:
 1. cloud_domain_search để tìm tên còn trống + báo giá VND (ưu tiên .vn và .com; nói rõ giá đã gồm VAT).
 2. Hỏi tôi chọn tên nào và XÁC NHẬN CHÍNH TẢ (WHOIS không sửa được sau khi mua).
 3. cloud_domain_registrant_set: HỎI TÔI thông tin chủ thể ngay trong phiên — họ tên, email, điện thoại, địa chỉ; nếu là .vn cá nhân hỏi thêm CCCD 12 số + ngày sinh + giới tính (tổ chức: tên công ty + MST + người đại diện). Đừng tự bịa.
@@ -332,7 +332,7 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
    ⚠️ Nếu tôi CHƯA có tài khoản MONA Pass / tool trả login_required: KHÔNG bảo tôi đi đăng ký trước. Dùng cloud_domain_reserve (hỏi email + sđt, hỏi 1 câu "nhận ưu đãi MONA Cloud không?") → đưa tôi QR trong payment để quét trả tiền ngay + claim_url để tôi bấm đăng nhập 1 bước (Google/GitHub/email) → hệ tự tạo ví + mua. Theo dõi bằng cloud_domain_reserve_status; nếu tôi đã login trên máy này thì gọi cloud_domain_claim.
 6. Nếu là .vn: cloud_domain_verify_start đưa tôi link eKYC/bản khai (chụp CCCD + chân dung / ký), rồi cloud_domain_wait tới khi active.
 7. ${app_id ? `Gắn vào app ${app_id} bằng cloud_domain_attach` : 'Gợi ý tôi deploy app lên MONA Cloud (cloud_app_create) rồi gắn domain bằng cloud_domain_attach'} — trỏ DNS + SSL tự động.
-Trả VND, không cần thẻ quốc tế, không mở dashboard.`,
+Trả VND đã VAT bằng chuyển khoản QR, không phải mở bảng điều khiển.`,
     },
   }] }));
 }

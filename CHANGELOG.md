@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.4 (2026-09-18)
+
+### Changed
+- Đổi khẩu mô tả/prompt: "không bảo người dùng mở web" → "người dùng chỉ quét QR và xác nhận, không phải đăng ký trước" (câu cũ làm Claude không MCP nghi lừa đảo, test 18/09); bỏ "không cần thẻ quốc tế".
+
+
 ## 0.10.3 (2026-09-18)
 
 ### Fixed
