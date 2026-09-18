@@ -53,7 +53,7 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
 
   server.registerTool('cloud_domain_registrant_set', {
     title: 'Cập nhật thông tin chủ thể đăng ký tên miền',
-    description: 'Lưu hoặc cập nhật thông tin chủ thể. Tên miền .vn cá nhân cần CCCD 12 số, ngày sinh, giới tính.',
+    description: 'Lưu thông tin chủ thể để đăng ký tên miền. HỎI NGƯỜI DÙNG cung cấp NGAY TRONG PHIÊN: họ tên, email, điện thoại, địa chỉ. Tên miền .vn cá nhân cần thêm CCCD 12 số + ngày sinh (DD/MM/YYYY) + giới tính; .vn tổ chức cần org_name + tax_code (MST) + representative. Lưu 1 lần, tái dùng cho các domain sau. Không tự bịa dữ liệu — thiếu trường nào thì hỏi đúng trường đó.',
     inputSchema: registrantSchema,
   }, (args) => runTool(() => clients.vibecloud('/api/domains/registrant', {
     method: 'PUT',
@@ -63,11 +63,14 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
   server.registerTool('cloud_domain_buy', {
     title: 'Mua tên miền',
     description: [
-      'Mua tên miền và trừ ví VND. Trước khi gọi:',
-      '1. Dùng cloud_domain_search để xem giá.',
-      '2. Hỏi người dùng xác nhận chính tả tên miền (vd: "Bạn có muốn đăng ký example.vn không?") — đây là lý do spelling_confirmed=true/false.',
-      '3. Hỏi người dùng duyệt chi phí (giá lấy từ cloud_domain_search).',
-      '4. Tên miền .vn cần registrant có CCCD — dùng cloud_domain_registrant_set trước.',
+      'Mua tên miền và trừ ví VND — làm trọn trong phiên, không bảo người dùng mở web. Trước khi gọi:',
+      '1. cloud_domain_search để xem giá + còn trống.',
+      '2. Hỏi người dùng xác nhận chính tả tên miền (vd: "Đăng ký example.vn nhé?") → spelling_confirmed. WHOIS không sửa được sau khi mua.',
+      '3. Hỏi duyệt chi phí (giá từ search).',
+      '4. cloud_domain_registrant_set để lưu thông tin chủ thể (hỏi người dùng ngay trong phiên); .vn cần CCCD/MST.',
+      'Khi gọi mà trả 402 insufficient_balance → gọi cloud_topup, IN NGUYÊN KHỐI qr_ascii (QR VietQR) cho người dùng quét bằng app ngân hàng NGAY trong terminal, chờ cloud_topup_status=paid rồi gọi lại cloud_domain_buy. Không bảo người dùng mở console để nạp.',
+      'Kết quả có suggested_next → gợi ý người dùng deploy app lên MONA Cloud (cloud_app_create) và gắn domain (cloud_domain_attach).',
+      '.vn sau khi mua ở trạng thái pending_verification → dùng cloud_domain_verify_start (link eKYC/bản khai) rồi cloud_domain_wait.',
       'sandbox=true: giả lập 0đ, không mua thật.',
     ].join(' '),
     inputSchema: z.object({
@@ -165,4 +168,27 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
       headers,
     });
   }));
+
+  server.registerPrompt('mua-ten-mien-monacloud', {
+    title: 'Mua tên miền cho app — làm trọn trong phiên (gợi ý, hỏi info, bắn QR, mua)',
+    description: 'AI tự tra + báo giá + hỏi thông tin chủ thể + nạp ví bằng QR trong terminal + mua + xác thực .vn, không bảo người dùng mở web.',
+    argsSchema: {
+      keyword: z.string().optional(),
+      app_id: z.string().optional(),
+    },
+  }, ({ keyword, app_id }) => ({ messages: [{
+    role: 'user',
+    content: {
+      type: 'text',
+      text: `Mua giúp tôi tên miền${keyword ? ` quanh "${keyword}"` : ''} bằng MONA Cloud, làm trọn ngay trong phiên này, đừng bảo tôi mở web:
+1. cloud_domain_search để tìm tên còn trống + báo giá VND (ưu tiên .vn và .com; nói rõ giá đã gồm VAT).
+2. Hỏi tôi chọn tên nào và XÁC NHẬN CHÍNH TẢ (WHOIS không sửa được sau khi mua).
+3. cloud_domain_registrant_set: HỎI TÔI thông tin chủ thể ngay trong phiên — họ tên, email, điện thoại, địa chỉ; nếu là .vn cá nhân hỏi thêm CCCD 12 số + ngày sinh + giới tính (tổ chức: tên công ty + MST + người đại diện). Đừng tự bịa.
+4. Kiểm ví bằng cloud_balance. Nếu thiếu tiền, gọi cloud_topup rồi IN NGUYÊN KHỐI qr_ascii (QR VietQR) cho tôi quét bằng app ngân hàng ngay trong terminal; chờ cloud_topup_status=paid.
+5. cloud_domain_buy (spelling_confirmed=true) — trừ ví, mua thật.
+6. Nếu là .vn: cloud_domain_verify_start đưa tôi link eKYC/bản khai (chụp CCCD + chân dung / ký), rồi cloud_domain_wait tới khi active.
+7. ${app_id ? `Gắn vào app ${app_id} bằng cloud_domain_attach` : 'Gợi ý tôi deploy app lên MONA Cloud (cloud_app_create) rồi gắn domain bằng cloud_domain_attach'} — trỏ DNS + SSL tự động.
+Trả VND, không cần thẻ quốc tế, không mở dashboard.`,
+    },
+  }] }));
 }

@@ -17,3 +17,6 @@
 ## 0.8.1
 
 Previous release.
+
+## 0.9.1 (2026-09-18)
+- domain: prompt `mua-ten-mien-monacloud` (làm trọn trong phiên: suggest → hỏi info chủ thể → QR nạp ví → mua → xác thực .vn → gắn app); cloud_domain_buy dẫn 402→cloud_topup QR + suggested_next deploy; registrant_set hỏi info trong phiên.
