@@ -99,7 +99,7 @@ export class CloudClients {
         currency: 'VND',
         wallet: 'local',
         source: '/api/me',
-        note: 'Số dư ví local MONA Cloud compute (billing.monacloud.vn không nhận token này). Thiếu tiền thì gọi cloud_topup: QR VietQR in ngay trong terminal, người dùng quét bằng app ngân hàng, không cần mở console. / Local compute wallet balance; top up with cloud_topup.',
+        note: 'Số dư ví local MONA Cloud compute (billing.monacloud.vn không nhận token này). Thiếu tiền thì gọi cloud_topup: QR VietQR in ngay trong terminal, người dùng quét bằng app ngân hàng. / Local compute wallet balance; top up with cloud_topup.',
       };
     }
   }

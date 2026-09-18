@@ -1,6 +1,6 @@
 # MONA Cloud MCP — hướng dẫn cho AI agent
 
-Tài liệu này dành cho Claude, Codex, Cursor và agent dùng Model Context Protocol. Mục tiêu là hoàn thành tích hợp end-to-end mà không yêu cầu người dùng mở dashboard; các bước human gồm đăng ký MONA Pass, duyệt chi phí, thêm DNS khi cần, nạp tiền và OTP/KYC bắt buộc.
+Tài liệu này dành cho Claude, Codex, Cursor và agent dùng Model Context Protocol. Mục tiêu là hoàn thành tích hợp end-to-end với các bước người chỉ là duyệt và quét QR; các bước human gồm đăng ký MONA Pass, duyệt chi phí, thêm DNS khi cần, nạp tiền và OTP/KYC bắt buộc.
 
 ## Luồng chuẩn 0.5.0: AI làm 99%
 
@@ -19,7 +19,7 @@ Human chỉ cần đăng ký MONA Pass/device flow một lần, duyệt chi phí
 
 1. Bắt đầu bằng `cloud_whoami`. Nếu nhận `login_required`, yêu cầu người dùng chạy `monacloud-mcp login`; không hỏi username hoặc password trong chat.
 2. Trước khi provision thật, đọc `cloud_balance`, `cloud_plan_list` hoặc `cloud_packages`/`cloud_prices`; báo ước tính và hỏi duyệt chi phí nếu chưa được duyệt. Với `sandbox: true`, không cần đọc hoặc nạp ví.
-3. Khi cần nạp, gọi `cloud_topup`; in NGUYÊN khối `qr_ascii` (không bọc lại) kèm ngân hàng, số tài khoản, số tiền, nội dung chuyển khoản; nhắc `qr_file`/`qr_url` nếu terminal hiển thị mờ. Không bảo người dùng mở console. Chỉ tiếp tục sau khi `cloud_topup_status` trả `paid` hoặc `cloud_balance` phản ánh tiền vào.
+3. Khi cần nạp, gọi `cloud_topup`; in NGUYÊN khối `qr_ascii` (không bọc lại) kèm ngân hàng, số tài khoản, số tiền, nội dung chuyển khoản; nhắc `qr_file`/`qr_url` nếu terminal hiển thị mờ. Chỉ tiếp tục sau khi `cloud_topup_status` trả `paid` hoặc `cloud_balance` phản ánh tiền vào.
 4. Với OTP ngân hàng, dừng đúng sau `monapay_link_bank_start` và `monapay_notification_register`. Hỏi người dùng mã vừa nhận; không suy đoán, brute-force hoặc ghi OTP vào source/log.
 5. Mọi endpoint webhook phải xác minh HMAC, chống replay theo timestamp và idempotent theo `transaction_code`.
 6. Không giao hàng chỉ dựa vào browser redirect. Chỉ xác nhận đơn sau webhook `CHECKOUT_PAID` hoặc đối soát server-side.
@@ -175,7 +175,7 @@ const { id } = await monamail.emails.send({
 
 `emailNguoiNhan`, `otp` và `requestId` lấy từ luồng xác thực của app. Dùng `MonaMail.verifyWebhook({ secret, timestamp, body, signature })` kiểm `X-Mona-Signature` trên `"<X-Mona-Timestamp>.<raw_body>"`. Chống replay theo timestamp, xử lý event một lần theo payload `id`/`X-Mona-Event-Id`.
 
-Ranh giới human của luồng Mail sau đăng nhập là **thêm DNS và quét QR nạp tiền**. Khi `mail_plan_set` trả `insufficient_funds`, gọi `cloud_topup`, in `qr_ascii` cho user quét và chờ `cloud_topup_status` paid hoặc `cloud_balance` cập nhật trước khi thử lại. Không yêu cầu user mở dashboard lấy API key. Lỗi Mail giữ `code`, `message`, `next_step`, `request_id` từ API, gồm `domain_not_verified`, `quota_exceeded`, `budget_exceeded` và `idempotency_conflict`.
+Ranh giới human của luồng Mail sau đăng nhập là **thêm DNS và quét QR nạp tiền**. Khi `mail_plan_set` trả `insufficient_funds`, gọi `cloud_topup`, in `qr_ascii` cho user quét và chờ `cloud_topup_status` paid hoặc `cloud_balance` cập nhật trước khi thử lại. API key lấy qua tool. Lỗi Mail giữ `code`, `message`, `next_step`, `request_id` từ API, gồm `domain_not_verified`, `quota_exceeded`, `budget_exceeded` và `idempotency_conflict`.
 
 ### Sandbox và idempotency Mail
 

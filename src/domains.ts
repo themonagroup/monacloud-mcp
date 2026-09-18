@@ -48,7 +48,7 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
       return {
         results,
         guest: true,
-        next_step: 'Người dùng chưa đăng nhập MONA Pass. Muốn mua: gọi cloud_domain_reserve (hỏi email + số điện thoại, xác nhận chính tả) → đưa QR trong payment + claim_url. KHÔNG bảo người dùng đi đăng ký hay mở web trước.',
+        next_step: 'Người dùng chưa đăng nhập MONA Pass. Muốn mua: gọi cloud_domain_reserve (hỏi email + số điện thoại, xác nhận chính tả) → đưa QR trong payment + claim_url; người dùng chỉ quét QR rồi đăng nhập MONA Pass một bước, không phải đăng ký trước.',
       };
     }
     return results;
@@ -77,7 +77,7 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
       '2. Hỏi người dùng xác nhận chính tả tên miền (vd: "Đăng ký example.vn nhé?") → spelling_confirmed. WHOIS không sửa được sau khi mua.',
       '3. Hỏi duyệt chi phí (giá từ search).',
       '4. cloud_domain_registrant_set để lưu thông tin chủ thể (hỏi người dùng ngay trong phiên); .vn cần CCCD/MST.',
-      'Khi gọi mà trả 402 insufficient_balance → gọi cloud_topup, IN NGUYÊN KHỐI qr_ascii (QR VietQR) cho người dùng quét bằng app ngân hàng NGAY trong terminal, chờ cloud_topup_status=paid rồi gọi lại cloud_domain_buy. Không bảo người dùng mở console để nạp.',
+      'Khi gọi mà trả 402 insufficient_balance → gọi cloud_topup, IN NGUYÊN KHỐI qr_ascii (QR VietQR) cho người dùng quét bằng app ngân hàng NGAY trong terminal, chờ cloud_topup_status=paid rồi gọi lại cloud_domain_buy.',
       'Kết quả có suggested_next → gợi ý người dùng deploy app lên MONA Cloud (cloud_app_create) và gắn domain (cloud_domain_attach).',
       '.vn sau khi mua ở trạng thái pending_verification → dùng cloud_domain_verify_start (link eKYC/bản khai) rồi cloud_domain_wait.',
       'sandbox=true: giả lập 0đ, không mua thật.',
@@ -283,7 +283,7 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
 
   server.registerTool('cloud_domain_dns_add', {
     title: 'Thêm bản ghi DNS',
-    description: 'Thêm 1 bản ghi DNS. Vd trỏ web: type=A, name=@, data=<IP>. Trỏ www: type=CNAME, name=www, data=<domain>. AI làm trọn, không cần mở dashboard.',
+    description: 'Thêm 1 bản ghi DNS. Vd trỏ web: type=A, name=@, data=<IP>. Trỏ www: type=CNAME, name=www, data=<domain>. AI làm trọn.',
     inputSchema: z.object({ domain_id: objectId, ...recordSchema }).strict(),
   }, ({ domain_id, ...record }) => runTool(() =>
     clients.vibecloud(`/api/domains/${encodeURIComponent(domain_id)}/records`, { method: 'POST', body: record })));
@@ -332,7 +332,7 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
    ⚠️ Nếu tôi CHƯA có tài khoản MONA Pass / tool trả login_required: KHÔNG bảo tôi đi đăng ký trước. Dùng cloud_domain_reserve (hỏi email + sđt, hỏi 1 câu "nhận ưu đãi MONA Cloud không?") → đưa tôi QR trong payment để quét trả tiền ngay + claim_url để tôi bấm đăng nhập 1 bước (Google/GitHub/email) → hệ tự tạo ví + mua. Theo dõi bằng cloud_domain_reserve_status; nếu tôi đã login trên máy này thì gọi cloud_domain_claim.
 6. Nếu là .vn: cloud_domain_verify_start đưa tôi link eKYC/bản khai (chụp CCCD + chân dung / ký), rồi cloud_domain_wait tới khi active.
 7. ${app_id ? `Gắn vào app ${app_id} bằng cloud_domain_attach` : 'Gợi ý tôi deploy app lên MONA Cloud (cloud_app_create) rồi gắn domain bằng cloud_domain_attach'} — trỏ DNS + SSL tự động.
-Trả VND đã VAT bằng chuyển khoản QR, không phải mở bảng điều khiển.`,
+Trả VND đã VAT bằng chuyển khoản QR.`,
     },
   }] }));
 }

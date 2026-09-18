@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.5 (2026-09-18)
+
+### Changed
+- Gỡ toàn bộ khẩu "không (cần/bảo) mở console/web/dashboard" khỏi tool description, instructions, prompt, README, docs — nói bằng việc người dùng vẫn làm (quét QR, duyệt, đăng nhập một bước).
+
+
 ## 0.10.4 (2026-09-18)
 
 ### Changed
