@@ -150,6 +150,24 @@ Mỗi tool có alias `vibecloud_base_*` cùng schema và handler. Cần DB/Supab
 
 `cloud_service_stop` không bị chặn bởi số dư để người dùng luôn có thể hạn chế chi phí. Những lệnh tạo/start/rebuild thật đọc `GET /v1/balance` trước khi gọi compute MONA Cloud.
 
+### MONA Domain — tên miền cho app (monadomain.vn)
+
+AI tra tên, báo giá VND đã VAT, hỏi chủ thể, mua .vn/.com bằng ví MONA Cloud rồi trỏ DNS + SSL vào app. Tra giá **không cần đăng nhập**; người dùng chưa có tài khoản vẫn mua được trong phiên bằng đường giữ chỗ → quét QR → bấm claim (đăng nhập MONA Pass 1 bước = tạo ví = mua).
+
+| Tool | Công dụng |
+|---|---|
+| `cloud_domain_search` | Còn trống + giá theo TLD; **guest gọi được** |
+| `cloud_domain_reserve` | Giữ chỗ 30' không trừ tiền; hỏi email + sđt (+ opt-in ưu đãi); trả QR đúng giá + `claim_url` + `claim_token`/`guest_token` |
+| `cloud_domain_reserve_status` | reserved / paid / claimed / expired + `next_step` |
+| `cloud_domain_claim` | Đăng nhập Pass → nhận reservation, kéo tiền về ví, mua ngay (idempotent) |
+| `cloud_domain_reserve_release` | Nhả chỗ khi chưa có tiền vào |
+| `cloud_domain_registrant_get` / `cloud_domain_registrant_set` | Chủ thể đăng ký (.vn cá nhân cần CCCD, tổ chức cần MST) |
+| `cloud_domain_buy` | Mua thẳng bằng ví khi đã đăng nhập; 402 → `cloud_topup` in QR |
+| `cloud_domain_verify_start` / `cloud_domain_verify_status` / `cloud_domain_wait` | Hồ sơ .vn + chờ active |
+| `cloud_domain_dns_*` / `cloud_domain_ns_set` / `cloud_domain_attach` / `cloud_domain_health` | DNS, NS, gắn app, sức khoẻ |
+
+Giữ chỗ chỉ khoá tên trong hệ MONA Cloud (`hold_scope=monacloud`), không giữ ở registry — tên đẹp thì trả sớm. Không gọi registrar tới khi tiền vào và có tài khoản nhận. Prompt `mua-ten-mien-monacloud(keyword?, app_id?)` dẫn trọn luồng.
+
 ### MONA Mail
 
 MONA Mail là dịch vụ gửi email giao dịch cho phần mềm và AI agent của người Việt: một API, trả VND, không cần thẻ, thuộc nhóm MONA Cloud của The MONA Group.

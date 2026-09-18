@@ -32,7 +32,7 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
 
   server.registerTool('cloud_domain_search', {
     title: 'Tìm kiếm + báo giá tên miền',
-    description: 'Kiểm tra tên miền còn trống và xem giá mua. Dùng trước khi mua để AI biết available/price.',
+    description: 'Kiểm tra tên miền còn trống và xem giá mua (VND, đã VAT). KHÔNG cần đăng nhập MONA Pass — gọi được ngay cả khi người dùng chưa có tài khoản; dùng trước khi mua/giữ chỗ để biết available/price.',
     inputSchema: z.object({
       q: z.string().min(1).max(253).describe('Tên miền hoặc từ khoá (vd: "myapp" hoặc "myapp.vn").'),
       tlds: z.string().max(200).optional().describe('Đuôi muốn tìm, phân cách phẩy (vd: "vn,com"). Mặc định: vn,com.'),
@@ -42,7 +42,7 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
     const params = new URLSearchParams({ q });
     if (tlds) params.set('tlds', tlds);
     if (years) params.set('years', String(years));
-    return clients.vibecloud(`/api/domains/search?${params}`);
+    return clients.vibecloudGuestOk(`/api/domains/search?${params}`);
   }));
 
   server.registerTool('cloud_domain_registrant_get', {
@@ -87,6 +87,77 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
     if (registrant_id) body.registrant_id = registrant_id;
     return clients.guardedVibecloud('/api/domains', { method: 'POST', body }, sandbox === true);
   }));
+
+  // --- Guest → reserve → claim (spec monadomain §12): mua TRƯỚC khi có tài khoản ---------------
+
+  server.registerTool('cloud_domain_reserve', {
+    title: 'Giữ chỗ tên miền + QR trả tiền (không cần tài khoản)',
+    description: [
+      'Giữ chỗ tên miền 30 phút cho người dùng CHƯA có MONA Pass (hoặc chưa login trên máy này) — không trừ tiền, không đăng ký thật, chỉ khoá tên trong hệ MONA Cloud.',
+      'Dùng khi người dùng muốn mua ngay trong phiên mà không muốn "đi đăng ký" trước: bạn đã dựng app, chọn tên, chỉ cần người bấm.',
+      'Bắt buộc hỏi người dùng: tên miền (xác nhận chính tả → spelling_confirmed), email, số điện thoại (kênh nhận link claim + hoá đơn). Hỏi thêm 1 câu nhẹ: "nhận thông báo ưu đãi MONA Cloud không?" → marketing_consent; không tick thì để false.',
+      'Nếu người dùng đã đưa đủ thông tin chủ thể (.vn cần CCCD/MST) thì gửi luôn ở registrant — lúc claim khỏi hỏi lại.',
+      'Kết quả: payment.qr_url (QR VietQR đúng số tiền) + claim_url + claim_token + guest_token (giữ lại để gọi cloud_domain_reserve_status). Đưa QR cho người dùng quét NGAY; tiền vào → hệ giữ cho reservation này. Sau đó người dùng mở claim_url: đăng nhập/đăng ký MONA Pass (Google/GitHub/email, 1 bước) → hệ tự lấy tiền + mua + tạo ví. Nếu người dùng ĐÃ có Pass trên máy này thì gọi thẳng cloud_domain_claim.',
+      'Giữ chỗ chỉ trong hệ MONA Cloud (hold_scope=monacloud) — người ngoài vẫn có thể đăng ký tên đó ở registry khác trong 30 phút; nói rõ điều này nếu tên đẹp.',
+    ].join(' '),
+    inputSchema: z.object({
+      name: domainName,
+      years: z.number().int().min(1).max(10).optional().describe('Số năm đăng ký. Mặc định 1.'),
+      email: z.string().email().describe('Email người dùng — nhận claim_url + hoá đơn.'),
+      phone: z.string().min(8).max(20).describe('Số điện thoại người dùng.'),
+      spelling_confirmed: z.boolean().describe('true = người dùng đã xác nhận chính tả tên miền.'),
+      marketing_consent: z.boolean().optional().describe('true CHỈ KHI người dùng đồng ý nhận thông báo ưu đãi MONA Cloud. Mặc định false.'),
+      registrant: registrantSchema.optional().describe('Thông tin chủ thể nếu đã hỏi được đủ trong phiên (tuỳ chọn).'),
+      context: z.string().max(500).optional().describe('Ngữ cảnh ngắn (vd: "Cursor dựng shop Next.js") — giúp MONA hỗ trợ đúng.'),
+      sandbox: z.boolean().optional().describe('sandbox=true: giả lập, không tạo QR thật.'),
+    }).strict(),
+  }, ({ sandbox, ...body }) => runTool(() => clients.vibecloudGuestOk('/api/domains/reserve', {
+    method: 'POST',
+    body,
+    ...(clients.sandboxEnabled(sandbox === true) ? { headers: { 'X-Vibecloud-Sandbox': '1' } } : {}),
+  })));
+
+  server.registerTool('cloud_domain_reserve_status', {
+    title: 'Trạng thái giữ chỗ tên miền',
+    description: 'Xem reservation đã nhận tiền chưa / đã claim chưa / còn hạn không. Guest truyền claim_token (hoặc guest_token) nhận từ cloud_domain_reserve; chủ reservation đã login thì không cần. Đọc next_step trong kết quả để biết bước kế.',
+    inputSchema: z.object({
+      reservation_id: objectId.describe('ID reservation từ cloud_domain_reserve.'),
+      claim_token: z.string().min(16).max(128).optional().describe('claim_token hoặc guest_token từ cloud_domain_reserve (bắt buộc khi chưa login).'),
+    }).strict(),
+  }, ({ reservation_id, claim_token }) => runTool(() => clients.vibecloudGuestOk(
+    `/api/domains/reserve/${encodeURIComponent(reservation_id)}`,
+    { query: claim_token ? { t: claim_token } : undefined, guestToken: claim_token },
+  )));
+
+  server.registerTool('cloud_domain_claim', {
+    title: 'Nhận reservation về tài khoản + mua (claim = đăng ký = trả tiền)',
+    description: [
+      'Gắn reservation vào MONA Pass đang đăng nhập, kéo tiền đã chuyển (nếu có) về ví rồi MUA ngay. Cần đăng nhập (monacloud-mcp login) — lần đầu đăng nhập MONA Cloud tự tạo hồ sơ + ví, không có form đăng ký riêng.',
+      'Idempotent: gọi lại khi trả 402 (ví chưa đủ → cloud_topup hoặc chờ tiền QR vào) hoặc 422 registrant_required (→ cloud_domain_registrant_set rồi claim lại; tiền vẫn nằm trong ví).',
+      'Kết quả như cloud_domain_buy (order id, status, suggested_next).',
+    ].join(' '),
+    inputSchema: z.object({
+      reservation_id: objectId.describe('ID reservation từ cloud_domain_reserve.'),
+      claim_token: z.string().min(16).max(128).describe('claim_token từ cloud_domain_reserve (hoặc tham số t trong claim_url).'),
+      registrant_id: objectId.optional().describe('ID registrant muốn dùng (mặc định: registrant của user hoặc từ reservation).'),
+      marketing_consent: z.boolean().optional().describe('true nếu người dùng đồng ý nhận ưu đãi lúc này.'),
+    }).strict(),
+  }, ({ reservation_id, ...body }) => runTool(() => clients.vibecloud(
+    `/api/domains/reserve/${encodeURIComponent(reservation_id)}/claim`,
+    { method: 'POST', body },
+  )));
+
+  server.registerTool('cloud_domain_reserve_release', {
+    title: 'Nhả chỗ tên miền đã giữ',
+    description: 'Huỷ reservation chưa nhận tiền (người dùng đổi ý / chọn tên khác). Đã có tiền vào thì không huỷ được — dùng cloud_domain_claim.',
+    inputSchema: z.object({
+      reservation_id: objectId,
+      claim_token: z.string().min(16).max(128).optional().describe('Bắt buộc khi chưa login.'),
+    }).strict(),
+  }, ({ reservation_id, claim_token }) => runTool(() => clients.vibecloudGuestOk(
+    `/api/domains/reserve/${encodeURIComponent(reservation_id)}`,
+    { method: 'DELETE', query: claim_token ? { t: claim_token } : undefined, guestToken: claim_token },
+  )));
 
   server.registerTool('cloud_domain_list', {
     title: 'Danh sách tên miền đã import/mua',
@@ -231,6 +302,7 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
 3. cloud_domain_registrant_set: HỎI TÔI thông tin chủ thể ngay trong phiên — họ tên, email, điện thoại, địa chỉ; nếu là .vn cá nhân hỏi thêm CCCD 12 số + ngày sinh + giới tính (tổ chức: tên công ty + MST + người đại diện). Đừng tự bịa.
 4. Kiểm ví bằng cloud_balance. Nếu thiếu tiền, gọi cloud_topup rồi IN NGUYÊN KHỐI qr_ascii (QR VietQR) cho tôi quét bằng app ngân hàng ngay trong terminal; chờ cloud_topup_status=paid.
 5. cloud_domain_buy (spelling_confirmed=true) — trừ ví, mua thật.
+   ⚠️ Nếu tôi CHƯA có tài khoản MONA Pass / tool trả login_required: KHÔNG bảo tôi đi đăng ký trước. Dùng cloud_domain_reserve (hỏi email + sđt, hỏi 1 câu "nhận ưu đãi MONA Cloud không?") → đưa tôi QR trong payment để quét trả tiền ngay + claim_url để tôi bấm đăng nhập 1 bước (Google/GitHub/email) → hệ tự tạo ví + mua. Theo dõi bằng cloud_domain_reserve_status; nếu tôi đã login trên máy này thì gọi cloud_domain_claim.
 6. Nếu là .vn: cloud_domain_verify_start đưa tôi link eKYC/bản khai (chụp CCCD + chân dung / ký), rồi cloud_domain_wait tới khi active.
 7. ${app_id ? `Gắn vào app ${app_id} bằng cloud_domain_attach` : 'Gợi ý tôi deploy app lên MONA Cloud (cloud_app_create) rồi gắn domain bằng cloud_domain_attach'} — trỏ DNS + SSL tự động.
 Trả VND, không cần thẻ quốc tế, không mở dashboard.`,

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.10.0 (2026-09-18)
+
+### Added — mua tên miền TRƯỚC khi có tài khoản (guest → reserve → claim, spec monadomain §12)
+- `cloud_domain_search` **không cần đăng nhập** nữa: chưa có MONA Pass vẫn tra tên + giá (backend rate-limit theo IP).
+- `cloud_domain_reserve` — giữ chỗ 30 phút, không trừ tiền, không đăng ký thật; hỏi email + sđt (+ 1 câu opt-in ưu đãi → `marketing_consent`); trả QR VietQR đúng giá + `claim_url` + `claim_token` + `guest_token`. Người dùng quét QR trước, đăng nhập Pass sau; tiền vào trước khi có tài khoản được giữ trên reservation.
+- `cloud_domain_reserve_status` — theo dõi reserved/paid/claimed/expired (guest dùng claim_token).
+- `cloud_domain_claim` — gắn reservation vào MONA Pass đang đăng nhập, kéo tiền về ví, mua ngay (idempotent; 402 → nạp, 422 → set registrant rồi claim lại).
+- `cloud_domain_reserve_release` — nhả chỗ khi chưa nhận tiền.
+- Prompt `mua-ten-mien-monacloud` có nhánh "chưa có tài khoản → reserve + QR + claim_url", không bảo người dùng đi đăng ký trước.
+- Backend ghi lead (email/sđt/consent) từ bước reserve/registrant/mua vào kho `leads` chung MONA Cloud (spec §12b).
+
+
 ## 0.9.0 (2026-09-18)
 
 ### Added

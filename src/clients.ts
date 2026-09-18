@@ -259,6 +259,37 @@ export class CloudClients {
     });
   }
 
+  /**
+   * Gọi endpoint MONA Cloud mở cho guest (spec monadomain §12: search/reserve/status không cần Pass).
+   * Có token trên máy thì vẫn gửi (để backend ghi lead + gắn chủ); chưa login thì đi ẩn danh
+   * hoặc dùng guest_token của reservation — KHÔNG ném login_required.
+   */
+  async vibecloudGuestOk<T = unknown>(
+    path: string,
+    options: {
+      method?: string;
+      body?: unknown;
+      query?: Record<string, string | number | undefined>;
+      headers?: Record<string, string>;
+      guestToken?: string;
+    } = {},
+  ): Promise<T> {
+    const { guestToken, ...rest } = options;
+    let token: string | undefined;
+    try {
+      token = await this.vibecloudToken();
+    } catch (error) {
+      if (!(error instanceof CloudError) || error.code !== 'login_required') throw error;
+      token = guestToken;
+    }
+    return requestJson<T>(`${this.config.vibecloudApi}${path}`, {
+      timeoutMs: 30_000,
+      ...rest,
+      token,
+      fetchImpl: this.fetchImpl,
+    });
+  }
+
   async guardedVibecloud(
     path: string,
     options: { method?: string; body?: unknown } = {},

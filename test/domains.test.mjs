@@ -280,3 +280,156 @@ test('cloud_domain_attach — .vn pending_verification returns pending=true', as
     assert.equal(result.pending, true);
   });
 });
+
+// --- Guest → reserve → claim (spec monadomain §12) ------------------------------------------
+
+async function guestFixture(fetcher, run) {
+  // Không MONACLOUD_TOKEN, không VIBECLOUD_API_TOKEN, config dir rỗng → auth.accessToken ném login_required
+  const directory = await mkdtemp(join(tmpdir(), 'mcp-domains-guest-'));
+  const calls = [];
+  const server = createServer({
+    env: {
+      MONACLOUD_CONFIG_DIR: directory,
+      MONACLOUD_API: 'https://compute.test',
+      MONACLOUD_BILLING_URL: 'https://billing.test',
+    },
+    fetchImpl: async (url, init) => {
+      const request = {
+        path: new URL(url).pathname,
+        query: Object.fromEntries(new URL(url).searchParams),
+        method: init.method || 'GET',
+        headers: init.headers || {},
+        body: init.body === undefined ? undefined : JSON.parse(init.body),
+      };
+      calls.push(request);
+      return fetcher(request, calls);
+    },
+  });
+  const client = new Client({ name: 'domain-guest-test', version: '1' });
+  const [a, b] = InMemoryTransport.createLinkedPair();
+  await server.connect(b);
+  await client.connect(a);
+  try {
+    await run(client, calls);
+  } finally {
+    await client.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+}
+
+test('reserve/claim tools registered with strict schemas', async () => {
+  await fixture(() => json([]), async (client) => {
+    const { tools } = await client.listTools();
+    for (const name of ['cloud_domain_reserve', 'cloud_domain_reserve_status', 'cloud_domain_claim', 'cloud_domain_reserve_release']) {
+      const tool = tools.find((t) => t.name === name);
+      assert.ok(tool, `Missing tool: ${name}`);
+      assert.equal(tool.inputSchema.additionalProperties, false);
+    }
+  });
+});
+
+test('guest: cloud_domain_search works WITHOUT any token (no Authorization header)', async () => {
+  await guestFixture((req) => {
+    assert.equal(req.path, '/api/domains/search');
+    assert.equal(req.headers.Authorization, undefined);
+    return json([{ domain: 'myapp.vn', available: true, price_vnd: 756000 }]);
+  }, async (client, calls) => {
+    const result = data(await call(client, 'cloud_domain_search', { q: 'myapp' }));
+    assert.equal(result[0].price_vnd, 756000);
+    assert.equal(calls.length, 1);
+  });
+});
+
+test('guest: cloud_domain_reserve posts email/phone/consent anonymously and returns claim_url + QR', async () => {
+  const reservation = {
+    id: 'aaaaaaaaaaaaaaaaaaaaaaaa', domain: 'myapp.vn', status: 'reserved', price_vnd: 756000,
+    claim_token: 'rsv_abcdefghijklmnopqrstuvwxyz', guest_token: 'vc_guest_zyxwvutsrqponmlkjihgfedcba',
+    claim_url: 'https://monadomain.vn/claim/aaaaaaaaaaaaaaaaaaaaaaaa?t=rsv_abcdefghijklmnopqrstuvwxyz',
+    payment: { qr_url: 'https://img.vietqr.io/x.png', amount: 756000, description: 'MONACLOUD123456789' },
+  };
+  await guestFixture((req) => {
+    assert.equal(req.method, 'POST');
+    assert.equal(req.path, '/api/domains/reserve');
+    assert.equal(req.headers.Authorization, undefined);
+    assert.deepEqual(req.body, {
+      name: 'myapp.vn', email: 'a@b.test', phone: '0909000111', spelling_confirmed: true, marketing_consent: true,
+      context: 'Cursor dựng shop',
+    });
+    return json(reservation, 201);
+  }, async (client) => {
+    const result = data(await call(client, 'cloud_domain_reserve', {
+      name: 'MyApp.VN', email: 'a@b.test', phone: '0909000111', spelling_confirmed: true, marketing_consent: true,
+      context: 'Cursor dựng shop',
+    }));
+    assert.equal(result.claim_url, reservation.claim_url);
+    assert.equal(result.payment.qr_url, reservation.payment.qr_url);
+  });
+});
+
+test('guest: cloud_domain_reserve_status sends claim_token both as ?t= and bearer', async () => {
+  await guestFixture((req) => {
+    assert.equal(req.method, 'GET');
+    assert.equal(req.path, '/api/domains/reserve/aaaaaaaaaaaaaaaaaaaaaaaa');
+    assert.equal(req.query.t, 'rsv_abcdefghijklmnopqrstuvwxyz');
+    assert.equal(req.headers.Authorization, 'Bearer rsv_abcdefghijklmnopqrstuvwxyz');
+    return json({ id: 'aaaaaaaaaaaaaaaaaaaaaaaa', status: 'paid', paid_vnd: 756000, next_step: 'mở claim_url' });
+  }, async (client) => {
+    const result = data(await call(client, 'cloud_domain_reserve_status', {
+      reservation_id: 'aaaaaaaaaaaaaaaaaaaaaaaa', claim_token: 'rsv_abcdefghijklmnopqrstuvwxyz',
+    }));
+    assert.equal(result.status, 'paid');
+  });
+});
+
+test('guest: cloud_domain_claim requires login (login_required, no HTTP call)', async () => {
+  await guestFixture(() => { throw new Error('must not call backend'); }, async (client, calls) => {
+    const result = await call(client, 'cloud_domain_claim', {
+      reservation_id: 'aaaaaaaaaaaaaaaaaaaaaaaa', claim_token: 'rsv_abcdefghijklmnopqrstuvwxyz',
+    });
+    assert.equal(result.isError, true);
+    assert.match(result.content[0].text, /login_required/);
+    assert.equal(calls.length, 0);
+  });
+});
+
+test('logged in: cloud_domain_claim posts token + consent with Authorization', async () => {
+  await fixture((req) => {
+    assert.equal(req.method, 'POST');
+    assert.equal(req.path, '/api/domains/reserve/aaaaaaaaaaaaaaaaaaaaaaaa/claim');
+    assert.equal(req.headers.Authorization, 'Bearer fake-compute');
+    assert.deepEqual(req.body, { claim_token: 'rsv_abcdefghijklmnopqrstuvwxyz', marketing_consent: true });
+    return json({ id: 'bbbbbbbbbbbbbbbbbbbbbbbb', domain: 'myapp.vn', status: 'pending_verification', charged_vnd: 756000, claimed: true });
+  }, async (client) => {
+    const result = data(await call(client, 'cloud_domain_claim', {
+      reservation_id: 'aaaaaaaaaaaaaaaaaaaaaaaa', claim_token: 'rsv_abcdefghijklmnopqrstuvwxyz', marketing_consent: true,
+    }));
+    assert.equal(result.claimed, true);
+  });
+});
+
+test('logged in: cloud_domain_reserve still sends Authorization so backend binds owner', async () => {
+  await fixture((req) => {
+    assert.equal(req.path, '/api/domains/reserve');
+    assert.equal(req.headers.Authorization, 'Bearer fake-compute');
+    return json({ id: 'aaaaaaaaaaaaaaaaaaaaaaaa', status: 'reserved', guest_token: null }, 201);
+  }, async (client) => {
+    const result = data(await call(client, 'cloud_domain_reserve', {
+      name: 'myapp.vn', email: 'a@b.test', phone: '0909000111', spelling_confirmed: true,
+    }));
+    assert.equal(result.guest_token, null);
+  });
+});
+
+test('guest: cloud_domain_reserve_release DELETEs with ?t=', async () => {
+  await guestFixture((req) => {
+    assert.equal(req.method, 'DELETE');
+    assert.equal(req.path, '/api/domains/reserve/aaaaaaaaaaaaaaaaaaaaaaaa');
+    assert.equal(req.query.t, 'rsv_abcdefghijklmnopqrstuvwxyz');
+    return json({ id: 'aaaaaaaaaaaaaaaaaaaaaaaa', status: 'released' });
+  }, async (client) => {
+    const result = data(await call(client, 'cloud_domain_reserve_release', {
+      reservation_id: 'aaaaaaaaaaaaaaaaaaaaaaaa', claim_token: 'rsv_abcdefghijklmnopqrstuvwxyz',
+    }));
+    assert.equal(result.status, 'released');
+  });
+});
