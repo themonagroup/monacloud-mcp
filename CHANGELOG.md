@@ -20,3 +20,6 @@ Previous release.
 
 ## 0.9.1 (2026-09-18)
 - domain: prompt `mua-ten-mien-monacloud` (làm trọn trong phiên: suggest → hỏi info chủ thể → QR nạp ví → mua → xác thực .vn → gắn app); cloud_domain_buy dẫn 402→cloud_topup QR + suggested_next deploy; registrant_set hỏi info trong phiên.
+
+## 0.9.2 (2026-09-18)
+- domain: quản lý DNS + NS hoàn toàn bằng AI — cloud_domain_dns_list/add/update/delete (A/AAAA/CNAME/MX/TXT/SRV/NS) + cloud_domain_ns_set (đổi nameserver ≥2). Backend /api/domains/{id}/records + /ns qua MONA Host.

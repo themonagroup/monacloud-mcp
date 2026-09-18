@@ -169,6 +169,51 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
     });
   }));
 
+  const recordSchema = {
+    type: z.enum(['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'SRV', 'NS']).describe('Loại bản ghi.'),
+    name: z.string().min(1).max(253).describe('Tên bản ghi ("@" cho gốc, "www", "api"...).'),
+    data: z.string().min(1).max(2048).describe('Giá trị (IP cho A, hostname cho CNAME, nội dung cho TXT...).'),
+    ttl: z.number().int().min(60).max(86400).optional().describe('TTL giây (mặc định để trống).'),
+    priority: z.number().int().min(0).max(65535).optional().describe('Ưu tiên (MX/SRV).'),
+  };
+
+  server.registerTool('cloud_domain_dns_list', {
+    title: 'Xem bản ghi DNS của tên miền',
+    description: 'Liệt kê bản ghi DNS (A/CNAME/MX/TXT...) của tên miền đăng ký tại MONA Cloud. domain_id lấy từ cloud_domain_list.',
+    inputSchema: z.object({ domain_id: objectId }).strict(),
+  }, ({ domain_id }) => runTool(() => clients.vibecloud(`/api/domains/${encodeURIComponent(domain_id)}/records`)));
+
+  server.registerTool('cloud_domain_dns_add', {
+    title: 'Thêm bản ghi DNS',
+    description: 'Thêm 1 bản ghi DNS. Vd trỏ web: type=A, name=@, data=<IP>. Trỏ www: type=CNAME, name=www, data=<domain>. AI làm trọn, không cần mở dashboard.',
+    inputSchema: z.object({ domain_id: objectId, ...recordSchema }).strict(),
+  }, ({ domain_id, ...record }) => runTool(() =>
+    clients.vibecloud(`/api/domains/${encodeURIComponent(domain_id)}/records`, { method: 'POST', body: record })));
+
+  server.registerTool('cloud_domain_dns_update', {
+    title: 'Sửa bản ghi DNS',
+    description: 'Sửa 1 bản ghi DNS theo record_id (lấy từ cloud_domain_dns_list).',
+    inputSchema: z.object({ domain_id: objectId, record_id: z.string().min(1).max(128), ...recordSchema }).strict(),
+  }, ({ domain_id, record_id, ...record }) => runTool(() =>
+    clients.vibecloud(`/api/domains/${encodeURIComponent(domain_id)}/records/${encodeURIComponent(record_id)}`, { method: 'PUT', body: record })));
+
+  server.registerTool('cloud_domain_dns_delete', {
+    title: 'Xoá bản ghi DNS',
+    description: 'Xoá 1 bản ghi DNS theo record_id.',
+    inputSchema: z.object({ domain_id: objectId, record_id: z.string().min(1).max(128) }).strict(),
+  }, ({ domain_id, record_id }) => runTool(() =>
+    clients.vibecloud(`/api/domains/${encodeURIComponent(domain_id)}/records/${encodeURIComponent(record_id)}`, { method: 'DELETE' })));
+
+  server.registerTool('cloud_domain_ns_set', {
+    title: 'Đổi nameserver (NS) của tên miền',
+    description: 'Đổi NS cho tên miền (≥2). Vd giữ DNS ở MONA: ns1.mona.host, ns2.mona.host. Hoặc chuyển sang Cloudflare/nhà khác. AI làm hoàn toàn.',
+    inputSchema: z.object({
+      domain_id: objectId,
+      ns_list: z.array(z.string().min(3).max(253)).min(2).max(6).describe('Danh sách hostname NS, tối thiểu 2.'),
+    }).strict(),
+  }, ({ domain_id, ns_list }) => runTool(() =>
+    clients.vibecloud(`/api/domains/${encodeURIComponent(domain_id)}/ns`, { method: 'PATCH', body: { ns_list } })));
+
   server.registerPrompt('mua-ten-mien-monacloud', {
     title: 'Mua tên miền cho app — làm trọn trong phiên (gợi ý, hỏi info, bắn QR, mua)',
     description: 'AI tự tra + báo giá + hỏi thông tin chủ thể + nạp ví bằng QR trong terminal + mua + xác thực .vn, không bảo người dùng mở web.',
