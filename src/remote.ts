@@ -213,13 +213,19 @@ export async function createRemoteServer(options: RemoteServerOptions): Promise<
     res.json({ ok: true, version: process.env.npm_package_version ?? "0.10.10", sessions: sessions.size });
   });
 
-  app.get("/.well-known/oauth-protected-resource", (_req: HttpRequest, res: HttpResponse) => {
+  // RFC 9728 cho phép metadata theo path của resource (/.well-known/oauth-protected-resource/mcp) — Smithery/Claude thử URL này trước.
+  app.get(["/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/mcp"], (_req: HttpRequest, res: HttpResponse) => {
     res.json({
       resource: `${publicUrl}/mcp`,
       authorization_servers: [publicUrl],
       bearer_methods_supported: ["header"],
       scopes_supported: SCOPES,
     });
+  });
+
+  // Cùng lý do: một số client hỏi /.well-known/oauth-authorization-server/mcp.
+  app.get("/.well-known/oauth-authorization-server/mcp", (_req: HttpRequest, res: HttpResponse) => {
+    res.set("Location", `${publicUrl}/.well-known/oauth-authorization-server`).status(302).end();
   });
 
   app.use(mcpAuthRouter({
