@@ -1,0 +1,45 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.themonagroup/monacloud-mcp",
+  "description": "Buy .vn/intl domains in VND, deploy apps, Postgres, email, VietQR pay — Vietnam MCP for AI agents",
+  "repository": {
+    "url": "https://github.com/themonagroup/monacloud-mcp",
+    "source": "github"
+  },
+  "version": "0.10.7",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "monacloud-mcp",
+      "version": "0.10.7",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "MONACLOUD_TOKEN",
+          "description": "Optional MONA Pass token (vc_live_* or JWT). Not needed for domain search/reserve; run `monacloud-mcp login` to buy, deploy and pay.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": true
+        },
+        {
+          "name": "MONACLOUD_SANDBOX",
+          "description": "Set 1 to simulate paid actions (no charge).",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        }
+      ],
+      "runtimeHint": "npx",
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "-y",
+          "description": "npx auto-install"
+        }
+      ]
+    }
+  ],
+  "websiteUrl": "https://monacloud.vn"
+}
