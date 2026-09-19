@@ -1,0 +1,5 @@
+{
+  "mcpServers": {
+    "monacloud": { "command": "npx", "args": ["-y", "monacloud-mcp"] }
+  }
+}
