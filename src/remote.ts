@@ -123,6 +123,15 @@ export async function createRemoteServer(options: RemoteServerOptions): Promise<
   });
 
   const registrationUrl = `${issuer}/clients-registrations/openid-connect`;
+  const callbackUrl = `${publicUrl}/callback`;
+  // authorize → Keycloak → /callback (proxy) → client: Keycloak gắn `iss=<issuer Keycloak>` vào response; client (Smithery, Claude)
+  // so iss với issuer của proxy → lệch → fail. Proxy nhận code ở /callback rồi phát code riêng cho client.
+  interface PendingAuth { clientId: string; redirectUri: string; state?: string; createdAt: number }
+  interface IssuedCode { upstreamCode: string; clientId: string; redirectUri: string; createdAt: number }
+  const pendingAuth = new Map<string, PendingAuth>();
+  const issuedCodes = new Map<string, IssuedCode>();
+  const PENDING_TTL_MS = 10 * 60_000;
+  const CODE_TTL_MS = 5 * 60_000;
 
   // DCR: SDK router lo validate + rate-limit (express-rate-limit 1h/IP); registerClient đẩy sang Keycloak
   // kèm Initial Access Token (Keycloak không mở đăng ký ẩn danh) và ép public client + PKCE.
@@ -136,7 +145,8 @@ export async function createRemoteServer(options: RemoteServerOptions): Promise<
       body: JSON.stringify({
         ...client,
         client_id: undefined,
-        redirect_uris: client.redirect_uris,
+        // Keycloak trả code về /callback của proxy (để không lộ tham số iss của Keycloak cho client) → phải đăng ký thêm URI này.
+        redirect_uris: [...new Set([...(client.redirect_uris as string[]), callbackUrl])],
         grant_types: ["authorization_code", "refresh_token"],
         token_endpoint_auth_method: "none",
         scope: DCR_SCOPES.join(" "),
@@ -169,7 +179,35 @@ export async function createRemoteServer(options: RemoteServerOptions): Promise<
       res: Parameters<ProxyOAuthServerProvider["authorize"]>[2],
     ): Promise<void> {
       const scopes = new Set([...(params.scopes ?? []), ...SCOPES]);
-      return super.authorize(client, { ...params, scopes: [...scopes] }, res);
+      const key = randomUUID();
+      pendingAuth.set(key, { clientId: client.client_id, redirectUri: params.redirectUri, state: params.state, createdAt: now() });
+      const target = new URL(discovery.authorization_endpoint);
+      target.search = new URLSearchParams({
+        client_id: client.client_id,
+        response_type: "code",
+        redirect_uri: callbackUrl,
+        code_challenge: params.codeChallenge,
+        code_challenge_method: "S256",
+        state: key,
+        scope: [...scopes].join(" "),
+      }).toString();
+      res.redirect(target.toString());
+    }
+
+    override async exchangeAuthorizationCode(
+      client: Parameters<ProxyOAuthServerProvider["exchangeAuthorizationCode"]>[0],
+      authorizationCode: string,
+      codeVerifier?: string,
+      redirectUri?: string,
+      resource?: URL,
+    ) {
+      const issued = issuedCodes.get(authorizationCode);
+      issuedCodes.delete(authorizationCode);
+      if (!issued || issued.clientId !== client.client_id || now() - issued.createdAt > CODE_TTL_MS
+        || (redirectUri && redirectUri !== issued.redirectUri)) {
+        throw new Error("invalid_grant: unknown or expired authorization code");
+      }
+      return super.exchangeAuthorizationCode(client, issued.upstreamCode, codeVerifier, callbackUrl, resource);
     }
   }
 
@@ -207,6 +245,30 @@ export async function createRemoteServer(options: RemoteServerOptions): Promise<
       }));
     });
     next();
+  });
+
+  app.get("/callback", (req: HttpRequest & { query: Record<string, unknown> }, res: HttpResponse) => {
+    const q = req.query;
+    const key = typeof q.state === "string" ? q.state : "";
+    const pending = pendingAuth.get(key);
+    pendingAuth.delete(key);
+    if (!pending || now() - pending.createdAt > PENDING_TTL_MS) {
+      res.status(400).json({ error: "invalid_request", error_description: "Phiên đăng nhập hết hạn hoặc không hợp lệ, hãy kết nối lại." });
+      return;
+    }
+    const target = new URL(pending.redirectUri);
+    if (typeof q.error === "string") {
+      target.searchParams.set("error", q.error);
+      if (typeof q.error_description === "string") target.searchParams.set("error_description", q.error_description);
+    } else if (typeof q.code === "string") {
+      const code = randomUUID();
+      issuedCodes.set(code, { upstreamCode: q.code, clientId: pending.clientId, redirectUri: pending.redirectUri, createdAt: now() });
+      target.searchParams.set("code", code);
+    } else {
+      target.searchParams.set("error", "server_error");
+    }
+    if (pending.state) target.searchParams.set("state", pending.state);
+    res.set("Location", target.toString()).status(302).end();
   });
 
   app.get("/healthz", (_req: HttpRequest, res: HttpResponse) => {
@@ -247,6 +309,8 @@ export async function createRemoteServer(options: RemoteServerOptions): Promise<
 
   async function sweep(): Promise<void> {
     const current = now();
+    for (const [k, v] of pendingAuth) if (current - v.createdAt > PENDING_TTL_MS) pendingAuth.delete(k);
+    for (const [k, v] of issuedCodes) if (current - v.createdAt > CODE_TTL_MS) issuedCodes.delete(k);
     const expired = [...sessions.entries()]
       .filter(([, session]) => session.exp * 1000 <= current || current - session.touchedAt > IDLE_TTL_MS)
       .map(([id]) => closeSession(id));

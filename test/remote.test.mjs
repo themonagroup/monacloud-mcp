@@ -144,7 +144,7 @@ test("dynamic registration adds the Keycloak initial access token", async () => 
   assert.equal(upstreamRequests.length, 1);
   assert.equal(upstreamRequests[0].init.headers.authorization, "Bearer initial-secret");
   const forwarded = JSON.parse(upstreamRequests[0].init.body);
-  assert.deepEqual(forwarded.redirect_uris, redirectUris);
+  assert.deepEqual(forwarded.redirect_uris, [...redirectUris, "https://mcp.monacloud.vn/callback"]);
   assert.deepEqual(forwarded.grant_types, ["authorization_code", "refresh_token"]);
   assert.equal(forwarded.token_endpoint_auth_method, "none");
   assert.equal(forwarded.scope, "profile email roles basic offline_access vibecloud-api billing-api");
