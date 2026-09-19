@@ -7,7 +7,7 @@ import { AuthManager } from './auth.js';
 import { CloudClients } from './clients.js';
 
 // serverInfo.version đọc từ package.json (từng hardcode 0.8.1 → client báo sai bản)
-const PKG_VERSION: string = (() => {
+export const PKG_VERSION: string = (() => {
   try { return String(createRequire(import.meta.url)('../package.json').version); } catch { return '0.0.0'; }
 })();
 import { errorResult, runTool, textResult, toAgentError } from './errors.js';

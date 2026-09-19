@@ -6,7 +6,7 @@ import express from "express";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { ProxyOAuthServerProvider } from "@modelcontextprotocol/sdk/server/auth/providers/proxyProvider.js";
 import { mcpAuthRouter } from "@modelcontextprotocol/sdk/server/auth/router.js";
-import { createServer as createMcpServer } from "./server.js";
+import { createServer as createMcpServer, PKG_VERSION } from "./server.js";
 import { createAccessTokenVerifier, type VerifiedAccessToken } from "./remote-verify.js";
 
 const SCOPES = ["openid", "profile", "email", "offline_access", "vibecloud-api", "billing-api"];
@@ -284,7 +284,7 @@ export async function createRemoteServer(options: RemoteServerOptions): Promise<
   });
 
   app.get("/healthz", (_req: HttpRequest, res: HttpResponse) => {
-    res.json({ ok: true, version: process.env.npm_package_version ?? "0.10.10", sessions: sessions.size });
+    res.json({ ok: true, version: PKG_VERSION, sessions: sessions.size });
   });
 
   // RFC 9728 cho phép metadata theo path của resource (/.well-known/oauth-protected-resource/mcp) — Smithery/Claude thử URL này trước.
