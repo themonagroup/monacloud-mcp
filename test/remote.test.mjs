@@ -5,13 +5,16 @@ import { after, before, test } from "node:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { createRemoteServer } from "../dist/remote.js";
+import { createServer as remoteTestServer } from "../dist/server.js";
 
 const PUBLIC_URL = "https://mcp.monacloud.vn";
 const ISSUER = "https://pass.monacloud.vn/realms/mona";
 let remote;
 const upstreamRequests = [];
 
-async function appFetch(input, init = {}) {
+async function appFetch(input, init = {}) { return appFetchFor(remote.app, input, init); }
+
+async function appFetchFor(app, input, init = {}) {
   const request = input instanceof Request ? input : new Request(String(input), init);
   const url = new URL(request.url);
   const body = request.body ? Buffer.from(await request.arrayBuffer()) : Buffer.alloc(0);
@@ -51,7 +54,7 @@ async function appFetch(input, init = {}) {
       }));
       return res;
     };
-    remote.app(req, res, reject);
+    app(req, res, reject);
   });
 }
 
@@ -148,4 +151,22 @@ test("dynamic registration adds the Keycloak initial access token", async () => 
   assert.deepEqual(forwarded.grant_types, ["authorization_code", "refresh_token"]);
   assert.equal(forwarded.token_endpoint_auth_method, "none");
   assert.equal(forwarded.scope, "profile email roles basic offline_access vibecloud-api billing-api");
+});
+
+test("each MONA Pass user gets an isolated MONACLOUD_CONFIG_DIR (no shared links.json)", async () => {
+  const seen = [];
+  const isolated = await createRemoteServer({
+    publicUrl: PUBLIC_URL, issuer: ISSUER, initialAccessToken: "initial-secret", fetch: mockFetch,
+    verifyAccessToken: async (token) => ({ token, clientId: "c", scopes: [], expiresAt: Math.floor(Date.now() / 1000) + 600, extra: { sub: token === "user-a" ? "sub-a" : "sub-b" } }),
+    createServer: (deps) => { seen.push(deps.env.MONACLOUD_CONFIG_DIR); return remoteTestServer(deps); },
+  });
+  const fetchIsolated = (input, init) => appFetchFor(isolated.app, input, init);
+  for (const token of ["user-a", "user-b"]) {
+    await fetchIsolated(`${PUBLIC_URL}/mcp`, { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json", accept: "application/json, text/event-stream" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "t", version: "1" } } }) });
+  }
+  assert.equal(seen.length, 2);
+  assert.notEqual(seen[0], seen[1]);
+  assert.ok(seen[0].endsWith("/users/sub-a") && seen[1].endsWith("/users/sub-b"));
+  await isolated.close();
 });

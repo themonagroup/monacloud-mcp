@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import cors from "cors";
 import express from "express";
@@ -390,7 +391,11 @@ export async function createRemoteServer(options: RemoteServerOptions): Promise<
       sessionIdGenerator: randomUUID,
       onsessioninitialized: (id) => { pendingSessionId = id; },
     });
-    const env: NodeJS.ProcessEnv = { ...process.env, ...options.env, MONACLOUD_TOKEN: auth.token };
+    // Mỗi người dùng (sub MONA Pass) một thư mục cấu hình riêng: monapay_link ghi links.json, tuyệt đối không dùng chung
+    // ~/.config/monacloud của tiến trình (nếu dùng chung, credential MONA Pay của người này lọt sang phiên người khác).
+    const userDir = join(options.dataDir ?? mkdtempSync(join(tmpdir(), "mcp-remote-")), "users", auth.extra.sub.replace(/[^a-zA-Z0-9_-]/g, "_"));
+    mkdirSync(userDir, { recursive: true, mode: 0o700 });
+    const env: NodeJS.ProcessEnv = { ...process.env, ...options.env, MONACLOUD_TOKEN: auth.token, MONACLOUD_CONFIG_DIR: userDir };
     const server = createServer({ env });
     await server.connect(transport);
     await transport.handleRequest(req as never, res as never, req.body);
