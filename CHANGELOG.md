@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.10 — 19/09/2026
+
+- Gỡ khẩu "không cần thẻ" khỏi instructions/README/docs (luật MONA 18/09: không nói bằng bước bị bỏ, nói bằng việc người vẫn làm: trả VND qua ví, nạp bằng VietQR).
+- Thêm `mcpb/manifest.json` + `npm run mcpb` (bundle MCPB cho Smithery), `glama.json`, `.mcp.json`.
+
 ## 0.10.9 (2026-09-19)
 
 ### Changed

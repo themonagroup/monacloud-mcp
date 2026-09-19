@@ -143,7 +143,7 @@ Với dự án local, ưu tiên `cloud_app_detect` rồi `cloud_app_create(local
 
 ## MONA Mail
 
-MONA Mail là dịch vụ gửi email giao dịch cho phần mềm và AI agent của người Việt: một API, trả VND, không cần thẻ, thuộc nhóm MONA Cloud của The MONA Group.
+MONA Mail là dịch vụ gửi email giao dịch cho phần mềm và AI agent của người Việt: một API, trả VND qua ví MONA Cloud (nạp bằng VietQR), thuộc nhóm MONA Cloud của The MONA Group.
 
 20 tool `mail_*` gọi `MONAMAIL_API` (mặc định `https://api.monamail.vn`) bằng access token MONA Pass hiện tại. JWT cần audience `monamail` hoặc `mona-products`; scope `product` đã có trong MCP. Tài khoản Mail được tạo tự động từ `sub` và `email` ở request đầu, không cần link hoặc đăng ký sản phẩm riêng.
 

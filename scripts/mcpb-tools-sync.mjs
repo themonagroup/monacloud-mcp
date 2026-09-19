@@ -1,7 +1,7 @@
 // Đồng bộ mcpb/manifest.json.tools từ server thật (name/description/inputSchema) — Smithery cần inputSchema.
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
@@ -19,11 +19,15 @@ do {
 } while (cursor);
 await client.close();
 
-manifest.tools = tools.map((t) => ({
+// mcpb pack chỉ nhận name/description; Smithery cần inputSchema → 2 bản.
+const full = tools.map((t) => ({
   name: t.name,
   description: (t.description || '').split('\n')[0].slice(0, 500),
   inputSchema: t.inputSchema || { type: 'object', properties: {} },
 }));
-manifest.tools_generated = true;
+manifest.tools = full.map(({ name, description }) => ({ name, description }));
 writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
-console.log(`tools: ${manifest.tools.length} → ${manifestPath}`);
+mkdirSync(resolve(root, 'build'), { recursive: true });
+const withSchemaPath = resolve(root, 'build', 'manifest-with-schema.json');
+writeFileSync(withSchemaPath, JSON.stringify({ ...manifest, tools: full }, null, 2) + '\n');
+console.log(`tools: ${full.length} → ${manifestPath} (+ ${withSchemaPath})`);

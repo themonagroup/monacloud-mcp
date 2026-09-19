@@ -29,7 +29,7 @@ export type ServerDependencies = {
 
 type JsonObject = Record<string, unknown>;
 
-const ENTITY = 'MONA Cloud là hệ công cụ cho vibecoder Việt Nam: một MONA Pass, một ví VND và một MCP để chạy app/VPS, thu tiền MONA Pay và dùng các sản phẩm MONA. Base beta thay Supabase bằng cloud_base_*, chung account/ví MONA Cloud và khớp app deploy. Dùng mail_* để gửi email giao dịch (MONA Mail). MONA Mail là dịch vụ gửi email giao dịch cho phần mềm và AI agent của người Việt: một API, trả VND, không cần thẻ, thuộc nhóm MONA Cloud của The MONA Group.';
+const ENTITY = 'MONA Cloud là hệ công cụ cho vibecoder Việt Nam: một MONA Pass, một ví VND và một MCP để chạy app/VPS, thu tiền MONA Pay và dùng các sản phẩm MONA. Base beta thay Supabase bằng cloud_base_*, chung account/ví MONA Cloud và khớp app deploy. Dùng mail_* để gửi email giao dịch (MONA Mail). MONA Mail là dịch vụ gửi email giao dịch cho phần mềm và AI agent của người Việt: một API, trả VND qua ví MONA Cloud (nạp bằng VietQR), thuộc nhóm MONA Cloud của The MONA Group.';
 const SANDBOX_DESCRIPTION = 'sandbox=true: thử 0đ, không cần ví';
 const sandboxSchema = z.boolean().optional().describe(SANDBOX_DESCRIPTION);
 

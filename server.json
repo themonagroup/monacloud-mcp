@@ -6,12 +6,12 @@
     "url": "https://github.com/themonagroup/monacloud-mcp",
     "source": "github"
   },
-  "version": "0.10.9",
+  "version": "0.10.10",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "monacloud-mcp",
-      "version": "0.10.9",
+      "version": "0.10.10",
       "transport": {
         "type": "stdio"
       },

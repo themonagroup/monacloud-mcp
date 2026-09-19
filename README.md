@@ -171,7 +171,7 @@ Giữ chỗ chỉ khoá tên trong hệ MONA Cloud (`hold_scope=monacloud`), kh�
 
 ### MONA Mail
 
-MONA Mail là dịch vụ gửi email giao dịch cho phần mềm và AI agent của người Việt: một API, trả VND, không cần thẻ, thuộc nhóm MONA Cloud của The MONA Group.
+MONA Mail là dịch vụ gửi email giao dịch cho phần mềm và AI agent của người Việt: một API, trả VND qua ví MONA Cloud (nạp bằng VietQR), thuộc nhóm MONA Cloud của The MONA Group.
 
 20 tool `mail_*` dùng MONA Pass sẵn có; tài khoản Mail được tạo tự động ở request đầu. Site: https://monamail.vn, API: https://api.monamail.vn.
 
