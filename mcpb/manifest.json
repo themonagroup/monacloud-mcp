@@ -1,0 +1,771 @@
+{
+  "manifest_version": "0.2",
+  "name": "monacloud-mcp",
+  "display_name": "MONA Cloud (monadomain)",
+  "version": "0.10.9",
+  "description": "Buy .vn/intl domains in VND, deploy apps, Postgres, email, VietQR pay — Vietnam MCP for AI agents. Domain search & reserve work without login.",
+  "author": {
+    "name": "The MONA Group",
+    "url": "https://monadomain.vn"
+  },
+  "homepage": "https://monadomain.vn",
+  "documentation": "https://monadomain.vn/AGENTS.md",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/themonagroup/monacloud-mcp"
+  },
+  "license": "MIT",
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/dist/index.js"
+      ],
+      "env": {
+        "MONACLOUD_TOKEN": "${user_config.monacloud_token}"
+      }
+    }
+  },
+  "user_config": {
+    "monacloud_token": {
+      "type": "string",
+      "title": "MONA Pass token",
+      "description": "Optional. Not needed for domain search/reserve; run `npx monacloud-mcp login` to buy, deploy and pay.",
+      "sensitive": true,
+      "required": false
+    }
+  },
+  "keywords": [
+    "mcp",
+    "domain",
+    "vn",
+    "vietnam",
+    "monadomain",
+    "monacloud",
+    "deploy",
+    "vietqr"
+  ],
+  "compatibility": {
+    "claude_desktop": ">=0.10.0",
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ],
+    "runtimes": {
+      "node": ">=18"
+    }
+  },
+  "tools": [
+    {
+      "name": "cloud_whoami",
+      "description": "Xác minh MONA Pass hiện tại. / Return the current MONA Pass profile."
+    },
+    {
+      "name": "cloud_balance",
+      "description": "Đọc số dư ví VND chung trước khi tạo tài nguyên có phí."
+    },
+    {
+      "name": "cloud_ledger",
+      "description": "Đọc các dòng nạp, trừ và hoàn tiền trong ledger."
+    },
+    {
+      "name": "cloud_topup",
+      "description": "AI tự tạo yêu cầu nạp ví và nhận QR VietQR: qr_ascii (khối đầy, in thẳng trong Claude Code/Codex/Gemini; nền sáng dùng qr_ascii_light), qr_file (PNG trên máy), qr_url (ảnh). Người dùng chỉ quét bằng app ngân hàng. Tiền vào tự cộng ví; xác nhận bằng cloud_topup_status."
+    },
+    {
+      "name": "cloud_topup_status",
+      "description": "Đọc trạng thái một yêu cầu nạp (pending/paid) sau khi người dùng quét QR, kèm số dư hiện tại. Dùng để chờ tiền vào rồi tiếp tục việc đang làm."
+    },
+    {
+      "name": "cloud_usage",
+      "description": "Đọc usage và tổng tiền theo tháng, có thể lọc sản phẩm."
+    },
+    {
+      "name": "cloud_services",
+      "description": "Gom VPS/database MONA Cloud cùng tài khoản ảo và webhook MONA Pay."
+    },
+    {
+      "name": "cloud_budget_set",
+      "description": "Đặt giới hạn chi tiêu theo product, project hoặc token."
+    },
+    {
+      "name": "cloud_budget_get",
+      "description": "Liệt kê giới hạn và mức đã dùng theo kỳ."
+    },
+    {
+      "name": "cloud_token_limit",
+      "description": "Đặt spend guard riêng cho token hiện tại hoặc token_id chỉ định."
+    },
+    {
+      "name": "cloud_open_console",
+      "description": "Trả URL console khi người dùng muốn tự xem hoá đơn hoặc quản lý tài khoản. Nạp ví KHÔNG cần console: dùng cloud_topup (QR in trong terminal)."
+    },
+    {
+      "name": "monapay_link",
+      "description": "Tạm đổi MONA Pass thành client credential MONA Pay và cache cục bộ; bỏ khi MONA Pay nhận JWT trực tiếp."
+    },
+    {
+      "name": "cloud_link",
+      "description": "Xác nhận compute MONA Cloud nhận MONA Pass trực tiếp; chỉ đổi thành vc_live token khi upstream còn ở chế độ cũ."
+    },
+    {
+      "name": "vibecloud_link",
+      "description": "Alias tương thích; dùng cloud_link cho tích hợp mới."
+    },
+    {
+      "name": "cloud_vps_create",
+      "description": "Đọc cloud_plan_list (monthly) hoặc cloud_prices/cloud_packages (hourly), ước tính rồi hỏi duyệt trước tạo. Monthly bỏ CPU/RAM/đĩa, lấy từ plan_code; period=month|year. Kiểm ví đủ giá gói, trả estimate và job_id. / Estimate, approve, create VPS. sandbox=true: thử 0đ, không cần ví."
+    },
+    {
+      "name": "vibecloud_create_vps",
+      "description": "Alias tương thích; dùng cloud_vps_create cho tích hợp mới. sandbox=true: thử 0đ, không cần ví."
+    },
+    {
+      "name": "cloud_db_create",
+      "description": "Kiểm tra ví chung rồi tạo MongoDB/PostgreSQL/MySQL; trả job_id để poll. sandbox=true: thử 0đ, không cần ví."
+    },
+    {
+      "name": "vibecloud_create_database",
+      "description": "Alias tương thích; dùng cloud_db_create cho tích hợp mới. sandbox=true: thử 0đ, không cần ví."
+    },
+    {
+      "name": "cloud_job_status",
+      "description": "Đọc job thật hoặc sandbox theo ID; API tự nhận diện sandbox nên không cần header."
+    },
+    {
+      "name": "vibecloud_job_status",
+      "description": "Alias tương thích; dùng cloud_job_status cho tích hợp mới. Job sandbox được tự nhận diện, không cần header."
+    },
+    {
+      "name": "cloud_services_list",
+      "description": "Liệt kê VPS/database; sandbox=true gộp cả service thử 0đ bằng API, không cần header."
+    },
+    {
+      "name": "vibecloud_list_services",
+      "description": "Alias tương thích; dùng cloud_services_list cho tích hợp mới. sandbox=true gộp service thử 0đ, không cần header."
+    },
+    {
+      "name": "cloud_service_start",
+      "description": "start VPS/database MONA Cloud. Lệnh có thể phát sinh chi phí và kiểm tra ví trước. sandbox=true: thử 0đ, không cần ví."
+    },
+    {
+      "name": "vibecloud_start",
+      "description": "Alias tương thích; dùng cloud_service_start cho tích hợp mới. sandbox=true: thử 0đ, không cần ví."
+    },
+    {
+      "name": "cloud_service_stop",
+      "description": "Dừng VPS/database MONA Cloud; luôn cho phép dừng để người dùng hạn chế chi phí."
+    },
+    {
+      "name": "vibecloud_stop",
+      "description": "Alias tương thích; dùng cloud_service_stop cho tích hợp mới."
+    },
+    {
+      "name": "cloud_service_rebuild",
+      "description": "rebuild VPS/database MONA Cloud. Lệnh có thể phát sinh chi phí và kiểm tra ví trước. sandbox=true: thử 0đ, không cần ví."
+    },
+    {
+      "name": "vibecloud_rebuild",
+      "description": "Alias tương thích; dùng cloud_service_rebuild cho tích hợp mới. sandbox=true: thử 0đ, không cần ví."
+    },
+    {
+      "name": "cloud_prices",
+      "description": "Đọc đơn giá giờ hiện hành."
+    },
+    {
+      "name": "vibecloud_prices",
+      "description": "Alias tương thích; dùng cloud_prices cho tích hợp mới."
+    },
+    {
+      "name": "cloud_packages",
+      "description": "Liệt kê package_slug và cấu hình CPU/RAM/đĩa."
+    },
+    {
+      "name": "vibecloud_packages",
+      "description": "Alias tương thích; dùng cloud_packages cho tích hợp mới."
+    },
+    {
+      "name": "cloud_agent_deploy",
+      "description": "Slot runtime agent wave kế tiếp; hiện trả trạng thái stub rõ ràng. sandbox=true: thử 0đ, không cần ví."
+    },
+    {
+      "name": "vibecloud_agent_deploy",
+      "description": "Alias tương thích; dùng cloud_agent_deploy cho tích hợp mới. sandbox=true: thử 0đ, không cần ví."
+    },
+    {
+      "name": "cloud_plan_list",
+      "description": "Bảng gói cùng giá tháng/năm; gợi ý gói rẻ nhất đủ CPU/RAM/đĩa yêu cầu, admin_only không tự chọn. Đọc trước khi duyệt chi phí. / List plans, prices and sizing recommendation."
+    },
+    {
+      "name": "vibecloud_plan_list",
+      "description": "Alias tương thích của cloud_plan_list. / Compatibility alias. Bảng gói cùng giá tháng/năm; gợi ý gói rẻ nhất đủ CPU/RAM/đĩa yêu cầu, admin_only không tự chọn. Đọc trước khi duyệt chi phí. / List plans, prices and sizing recommendation."
+    },
+    {
+      "name": "cloud_subscription_list",
+      "description": "Đọc các gói đang dùng, kỳ gia hạn và auto-renew. / List subscriptions."
+    },
+    {
+      "name": "vibecloud_subscription_list",
+      "description": "Alias tương thích của cloud_subscription_list. / Compatibility alias. Đọc các gói đang dùng, kỳ gia hạn và auto-renew. / List subscriptions."
+    },
+    {
+      "name": "cloud_subscription_update",
+      "description": "Đổi gói/chu kỳ/gia hạn sau khi đọc subscription và giá, ước tính rồi được duyệt. Upgrade tính prorate, downgrade kỳ sau. Huỷ: auto_renew=false, cancel_action=hourly|stop. / Update or cancel renewal."
+    },
+    {
+      "name": "vibecloud_subscription_update",
+      "description": "Alias tương thích của cloud_subscription_update. / Compatibility alias. Đổi gói/chu kỳ/gia hạn sau khi đọc subscription và giá, ước tính rồi được duyệt. Upgrade tính prorate, downgrade kỳ sau. Huỷ: auto_renew=false, cancel_action=hourly|stop. / Update or cancel renewal."
+    },
+    {
+      "name": "cloud_invoice_list",
+      "description": "Đọc hoá đơn hàng tháng của tài khoản. / List monthly invoices."
+    },
+    {
+      "name": "vibecloud_invoice_list",
+      "description": "Alias tương thích của cloud_invoice_list. / Compatibility alias. Đọc hoá đơn hàng tháng của tài khoản. / List monthly invoices."
+    },
+    {
+      "name": "cloud_invoice_pdf",
+      "description": "Tải PDF hoá đơn vào file tạm riêng tư, trả path; sao chép ra nơi cần giữ trước khi hệ điều hành dọn. / Download invoice PDF to a private temporary file."
+    },
+    {
+      "name": "vibecloud_invoice_pdf",
+      "description": "Alias tương thích của cloud_invoice_pdf. / Compatibility alias. Tải PDF hoá đơn vào file tạm riêng tư, trả path; sao chép ra nơi cần giữ trước khi hệ điều hành dọn. / Download invoice PDF to a private temporary file."
+    },
+    {
+      "name": "cloud_credit_redeem",
+      "description": "Dùng mã credit người dùng cung cấp sau khi họ đồng ý; không thử đoán mã. / Redeem an approved promotional credit code."
+    },
+    {
+      "name": "vibecloud_credit_redeem",
+      "description": "Alias tương thích của cloud_credit_redeem. / Compatibility alias. Dùng mã credit người dùng cung cấp sau khi họ đồng ý; không thử đoán mã. / Redeem an approved promotional credit code."
+    },
+    {
+      "name": "cloud_app_detect",
+      "description": "Nhận diện Node/Next/Vite/Python/PHP/static, port, start, Dockerfile, build_type và tên biến .env.example; hoàn toàn offline, không thực thi code dự án. / Detect a local app without network."
+    },
+    {
+      "name": "vibecloud_app_detect",
+      "description": "Alias tương thích của cloud_app_detect. / Compatibility alias. Nhận diện Node/Next/Vite/Python/PHP/static, port, start, Dockerfile, build_type và tên biến .env.example; hoàn toàn offline, không thực thi code dự án. / Detect a local app without network."
+    },
+    {
+      "name": "cloud_app_create",
+      "description": "App từ git đã live: app host đầu tiên ~2–3 phút, deploy sau đó 10–20 giây. / Git apps are live. AI làm 99%: cloud_app_detect(local_dir) offline → cloud_app_host_list, cloud_prices/cloud_packages/cloud_plan_list và cloud_balance → cloud_app_create(local_dir, sandbox=true) nếu chưa có app host để ước tính chi phí giờ/gói → hỏi human một lần duyệt chi phí nếu chưa được duyệt → cloud_app_create(local_dir, sandbox=false) → poll tới done/succeeded → kiểm và trả URL. Cần DB/Supabase? cloud_base_create "
+    },
+    {
+      "name": "vibecloud_app_create",
+      "description": "Alias tương thích của cloud_app_create. / Compatibility alias. App từ git đã live: app host đầu tiên ~2–3 phút, deploy sau đó 10–20 giây. / Git apps are live. AI làm 99%: cloud_app_detect(local_dir) offline → cloud_app_host_list, cloud_prices/cloud_packages/cloud_plan_list và cloud_balance → cloud_app_create(local_dir, sandbox=true) nếu chưa có app host để ước tính chi phí giờ/gói → hỏi human một lần duyệt chi phí nếu chưa được duyệt → cloud_app_create(local_dir, sandbox=false) → poll tới done/s"
+    },
+    {
+      "name": "cloud_app_list",
+      "description": "App từ git đã live: app host đầu tiên ~2–3 phút, deploy sau đó 10–20 giây. / Git apps are live. Liệt kê app trước khi tạo để tránh trùng. / List apps."
+    },
+    {
+      "name": "vibecloud_app_list",
+      "description": "Alias tương thích của cloud_app_list. / Compatibility alias. App từ git đã live: app host đầu tiên ~2–3 phút, deploy sau đó 10–20 giây. / Git apps are live. Liệt kê app trước khi tạo để tránh trùng. / List apps."
+    },
+    {
+      "name": "cloud_app_host_list",
+      "description": "App từ git đã live: app host đầu tiên ~2–3 phút, deploy sau đó 10–20 giây. / Git apps are live. Đọc app host; chưa có host thì sandbox cloud_app_create trước để ước tính. / List app hosts."
+    },
+    {
+      "name": "vibecloud_app_host_list",
+      "description": "Alias tương thích của cloud_app_host_list. / Compatibility alias. App từ git đã live: app host đầu tiên ~2–3 phút, deploy sau đó 10–20 giây. / Git apps are live. Đọc app host; chưa có host thì sandbox cloud_app_create trước để ước tính. / List app hosts."
+    },
+    {
+      "name": "cloud_app_get",
+      "description": "App từ git đã live: app host đầu tiên ~2–3 phút, deploy sau đó 10–20 giây. / Git apps are live. Đọc status, URL, lần deploy và app host. / Inspect app."
+    },
+    {
+      "name": "vibecloud_app_get",
+      "description": "Alias tương thích của cloud_app_get. / Compatibility alias. App từ git đã live: app host đầu tiên ~2–3 phút, deploy sau đó 10–20 giây. / Git apps are live. Đọc status, URL, lần deploy và app host. / Inspect app."
+    },
+    {
+      "name": "cloud_app_deploy",
+      "description": "App từ git đã live: app host đầu tiên ~2–3 phút, deploy sau đó 10–20 giây. / Git apps are live. App upload: local_dir đóng ZIP mới → upload → chờ job → deploy; bỏ local_dir để redeploy bản đã upload. / Redeploy uploaded source or a git app and poll."
+    },
+    {
+      "name": "vibecloud_app_deploy",
+      "description": "Alias tương thích của cloud_app_deploy. / Compatibility alias. App từ git đã live: app host đầu tiên ~2–3 phút, deploy sau đó 10–20 giây. / Git apps are live. App upload: local_dir đóng ZIP mới → upload → chờ job → deploy; bỏ local_dir để redeploy bản đã upload. / Redeploy uploaded source or a git app and poll."
+    },
+    {
+      "name": "cloud_app_env_set",
+      "description": "App từ git đã live: app host đầu tiên ~2–3 phút, deploy sau đó 10–20 giây. / Git apps are live. Thay toàn bộ env sau khi được duyệt, gửi đầy đủ map cần giữ; không log secret. Gọi cloud_app_deploy sau đó để áp dụng. / Set app environment."
+    },
+    {
+      "name": "vibecloud_app_env_set",
+      "description": "Alias tương thích của cloud_app_env_set. / Compatibility alias. App từ git đã live: app host đầu tiên ~2–3 phút, deploy sau đó 10–20 giây. / Git apps are live. Thay toàn bộ env sau khi được duyệt, gửi đầy đủ map cần giữ; không log secret. Gọi cloud_app_deploy sau đó để áp dụng. / Set app environment."
+    },
+    {
+      "name": "cloud_app_domain_add",
+      "description": "App từ git đã live: app host đầu tiên ~2–3 phút, deploy sau đó 10–20 giây. / Git apps are live. Thêm domain human ĐÃ có, trả hướng dẫn CNAME từ API; chờ DNS trước kiểm HTTPS. Human chưa có domain → dùng cloud_domain_search/cloud_domain_reserve/cloud_domain_buy rồi cloud_domain_attach (mua .vn/.com bằng VND ngay trong phiên). / Attach an existing custom domain; to buy one use cloud_domain_*."
+    },
+    {
+      "name": "vibecloud_app_domain_add",
+      "description": "Alias tương thích của cloud_app_domain_add. / Compatibility alias. App từ git đã live: app host đầu tiên ~2–3 phút, deploy sau đó 10–20 giây. / Git apps are live. Thêm domain human ĐÃ có, trả hướng dẫn CNAME từ API; chờ DNS trước kiểm HTTPS. Human chưa có domain → dùng cloud_domain_search/cloud_domain_reserve/cloud_domain_buy rồi cloud_domain_attach (mua .vn/.com bằng VND ngay trong phiên). / Attach an existing custom domain; to buy one use cloud_domain_*."
+    },
+    {
+      "name": "cloud_app_logs",
+      "description": "App từ git đã live: app host đầu tiên ~2–3 phút, deploy sau đó 10–20 giây. / Git apps are live. Đọc tối đa 500 dòng log; có thể chứa secret, không đưa nguyên log ra công khai. / Read deployment logs."
+    },
+    {
+      "name": "vibecloud_app_logs",
+      "description": "Alias tương thích của cloud_app_logs. / Compatibility alias. App từ git đã live: app host đầu tiên ~2–3 phút, deploy sau đó 10–20 giây. / Git apps are live. Đọc tối đa 500 dòng log; có thể chứa secret, không đưa nguyên log ra công khai. / Read deployment logs."
+    },
+    {
+      "name": "cloud_app_delete",
+      "description": "App từ git đã live: app host đầu tiên ~2–3 phút, deploy sau đó 10–20 giây. / Git apps are live. Sau khi user duyệt xoá: xoá app/domain/A record; app host vẫn có thể tính phí. / Delete an approved app."
+    },
+    {
+      "name": "vibecloud_app_delete",
+      "description": "Alias tương thích của cloud_app_delete. / Compatibility alias. App từ git đã live: app host đầu tiên ~2–3 phút, deploy sau đó 10–20 giây. / Git apps are live. Sau khi user duyệt xoá: xoá app/domain/A record; app host vẫn có thể tính phí. / Delete an approved app."
+    },
+    {
+      "name": "cloud_base_create",
+      "description": "Ước tính, kiểm ví, tạo Base và poll job tới hoàn tất; sandbox chỉ trả ước tính. / Estimate, create and wait for the Base job. Base beta = thay Supabase, chung account/ví MONA Cloud. / Beta Supabase replacement on the shared MONA Cloud account and wallet."
+    },
+    {
+      "name": "vibecloud_base_create",
+      "description": "Alias tương thích của cloud_base_create. / Compatibility alias. Ước tính, kiểm ví, tạo Base và poll job tới hoàn tất; sandbox chỉ trả ước tính. / Estimate, create and wait for the Base job. Base beta = thay Supabase, chung account/ví MONA Cloud. / Beta Supabase replacement on the shared MONA Cloud account and wallet."
+    },
+    {
+      "name": "cloud_base_list",
+      "description": "Liệt kê Base beta của tài khoản hiện tại. / List Bases. Base beta = thay Supabase, chung account/ví MONA Cloud. / Beta Supabase replacement on the shared MONA Cloud account and wallet."
+    },
+    {
+      "name": "vibecloud_base_list",
+      "description": "Alias tương thích của cloud_base_list. / Compatibility alias. Liệt kê Base beta của tài khoản hiện tại. / List Bases. Base beta = thay Supabase, chung account/ví MONA Cloud. / Beta Supabase replacement on the shared MONA Cloud account and wallet."
+    },
+    {
+      "name": "cloud_base_get",
+      "description": "Đọc trạng thái và URL của một Base beta. / Inspect a Base. Base beta = thay Supabase, chung account/ví MONA Cloud. / Beta Supabase replacement on the shared MONA Cloud account and wallet."
+    },
+    {
+      "name": "vibecloud_base_get",
+      "description": "Alias tương thích của cloud_base_get. / Compatibility alias. Đọc trạng thái và URL của một Base beta. / Inspect a Base. Base beta = thay Supabase, chung account/ví MONA Cloud. / Beta Supabase replacement on the shared MONA Cloud account and wallet."
+    },
+    {
+      "name": "cloud_base_delete",
+      "description": "Xoá Base beta đã được người dùng duyệt. / Delete an approved Base. Base beta = thay Supabase, chung account/ví MONA Cloud. / Beta Supabase replacement on the shared MONA Cloud account and wallet."
+    },
+    {
+      "name": "vibecloud_base_delete",
+      "description": "Alias tương thích của cloud_base_delete. / Compatibility alias. Xoá Base beta đã được người dùng duyệt. / Delete an approved Base. Base beta = thay Supabase, chung account/ví MONA Cloud. / Beta Supabase replacement on the shared MONA Cloud account and wallet."
+    },
+    {
+      "name": "cloud_base_credentials",
+      "description": "Đọc anon_key, service_key và db_url. Bí mật, không log; lưu thẳng vào secret store hoặc .env không commit. / Reveal credentials once and keep them secret. Base beta = thay Supabase, chung account/ví MONA Cloud. / Beta Supabase replacement on the shared MONA Cloud account and wallet."
+    },
+    {
+      "name": "vibecloud_base_credentials",
+      "description": "Alias tương thích của cloud_base_credentials. / Compatibility alias. Đọc anon_key, service_key và db_url. Bí mật, không log; lưu thẳng vào secret store hoặc .env không commit. / Reveal credentials once and keep them secret. Base beta = thay Supabase, chung account/ví MONA Cloud. / Beta Supabase replacement on the shared MONA Cloud account and wallet."
+    },
+    {
+      "name": "mail_account",
+      "description": "Khi bắt đầu tích hợp email, đọc tài khoản, quota và bước kế tiếp. / Use first to read account and quota at https://api.monamail.vn."
+    },
+    {
+      "name": "mail_plans",
+      "description": "Khi chọn gói gửi mail, đọc giá và quota hiện hành. / Use to compare current email plans."
+    },
+    {
+      "name": "mail_plan_set",
+      "description": "Khi cần đổi quota, chọn gói; gói trả phí trừ ví VND, thiếu tiền gọi cloud_topup. / Use to change the email plan."
+    },
+    {
+      "name": "mail_send",
+      "description": "Khi gửi OTP hoặc thông báo, dùng domain đã verify; onboarding@monamail.vn chỉ gửi tới email chủ. sandbox=true thử 0đ, không gửi ra Internet. / Use to send transactional email or test in sandbox."
+    },
+    {
+      "name": "mail_status",
+      "description": "Khi cần xác nhận thư đã giao, đọc trạng thái, events và sandbox_preview. / Use to inspect an email after sending."
+    },
+    {
+      "name": "mail_list",
+      "description": "Khi tra lịch sử gửi, lọc theo trạng thái, người nhận hoặc thời gian. / Use to search sent email history."
+    },
+    {
+      "name": "mail_domain_add",
+      "description": "Khi gửi bằng domain của app, thêm domain. Trả record DNS; nếu người dùng dùng Cloudflare có thể gọi mail_domain_cloudflare với token của họ (không lưu). / Use to register a sender domain and get DNS records."
+    },
+    {
+      "name": "mail_domain_verify",
+      "description": "Khi đã thêm DNS, kiểm DKIM và trạng thái domain. / Use after adding DNS records to verify the sender domain."
+    },
+    {
+      "name": "mail_domain_cloudflare",
+      "description": "Khi người dùng cung cấp token Cloudflare, thêm DNS rồi verify domain. Token dùng một lần, không lưu, không log. / Use a user-provided Cloudflare token to configure DNS and verify."
+    },
+    {
+      "name": "mail_domains_list",
+      "description": "Khi chọn địa chỉ gửi, xem domain và trạng thái xác minh. / Use to find verified sender domains."
+    },
+    {
+      "name": "mail_api_key_create",
+      "description": "Khi tích hợp SDK vào app, tạo key live hoặc test. Key chỉ trả một lần; ghi vào .env của app dưới tên MONAMAIL_API_KEY, không cần in ra chat. / Use to create an app key; store the one-time secret in .env."
+    },
+    {
+      "name": "mail_api_keys_list",
+      "description": "Khi kiểm tra key của app, đọc prefix và trạng thái; không trả secret. / Use to inspect existing API key metadata."
+    },
+    {
+      "name": "mail_api_key_revoke",
+      "description": "Khi key không còn dùng hoặc bị lộ, thu hồi bằng key_id. / Use to revoke an unused or compromised API key."
+    },
+    {
+      "name": "mail_webhook_create",
+      "description": "Khi app cần nhận sự kiện gửi hoặc bounce, đăng ký HTTPS webhook; lưu secret một lần vào .env, không log. / Use to subscribe an app to email events."
+    },
+    {
+      "name": "mail_webhooks_list",
+      "description": "Khi kiểm tra cấu hình sự kiện của app, liệt kê webhook. / Use to inspect registered email webhooks."
+    },
+    {
+      "name": "mail_webhook_test",
+      "description": "Khi đã có endpoint, gửi mẫu email.delivered để kiểm tra HTTP response. / Use to test webhook delivery to an app."
+    },
+    {
+      "name": "mail_suppressions_list",
+      "description": "Khi thư bị suppressed, xem địa chỉ và lý do ngừng gửi. / Use to diagnose suppressed recipients."
+    },
+    {
+      "name": "mail_suppression_remove",
+      "description": "Khi đã xử lý nguyên nhân chặn, gỡ suppression của tài khoản; lớp toàn hệ không gỡ được. / Use to remove an account-level suppression."
+    },
+    {
+      "name": "mail_template_create",
+      "description": "Khi app dùng lại nội dung mail, tạo template với biến {{ten_bien}}. / Use to create a reusable email template."
+    },
+    {
+      "name": "mail_stats",
+      "description": "Khi đánh giá khả năng giao thư, đọc tỷ lệ delivered và bounce theo thời gian. / Use to review email delivery statistics."
+    },
+    {
+      "name": "mail_inbox_create",
+      "description": "Khi cần một địa chỉ email cho agent trực (đọc thư, trả lời), tạo hộp. Bỏ domain để dùng miền agent.monamail.vn (nhận ngay); truyền domain đã verify để có địa chỉ brand. / Use to create an inbox an AI agent can read and reply from."
+    },
+    {
+      "name": "mail_inbox_list",
+      "description": "Khi cần biết agent đang trực những hộp nào, liệt kê hộp còn hoạt động. / Use to list active agent inboxes."
+    },
+    {
+      "name": "mail_inbox_get",
+      "description": "Khi cần địa chỉ và trạng thái của một hộp, đọc chi tiết. / Use to read one inbox."
+    },
+    {
+      "name": "mail_inbox_delete",
+      "description": "Khi hộp không còn dùng, xóa mềm; thư cũ còn đọc tới hết retention. / Use to soft-delete an inbox."
+    },
+    {
+      "name": "mail_inbox_messages",
+      "description": "Khi trực hộp, liệt kê thư nhận; lọc seen=false để lấy thư chưa xử lý, phân trang bằng cursor. / Use to list messages an agent needs to handle."
+    },
+    {
+      "name": "mail_inbox_message",
+      "description": "Khi cần nội dung đầy đủ, header và đính kèm của một thư, đọc chi tiết; lần đọc đầu đánh dấu đã xem. / Use to read a full inbox message before replying."
+    },
+    {
+      "name": "mail_inbox_reply",
+      "description": "Khi agent trả lời khách, gửi đúng thread (In-Reply-To, References) từ địa chỉ hộp; cần text hoặc html. Việc khó rút lại (hứa giá, chuyển tiền) thì báo người, đừng tự gửi. / Use to reply to an inbox message in-thread."
+    },
+    {
+      "name": "mail_inbox_wait",
+      "description": "Khi cần chờ thư tới (ví dụ mã OTP hoặc thư khớp mẫu), chờ tối đa timeout giây; có thư khớp trả full nội dung + extracted_code, hết giờ trả 204. Gọi lại nếu cần chờ lâu hơn. / Use to wait for an OTP or a matching message."
+    },
+    {
+      "name": "mail_inbox_update",
+      "description": "Khi cần đặt cách hộp xử lý thư: mode redirect (tự forward thư về email chủ) | store (chỉ lưu) | ai (để AI trực), địa chỉ forward_to, chat Telegram nhận báo, hoặc bật/tắt hộp. / Use to configure an inbox: redirect-forward email, Telegram chat, mode, active."
+    },
+    {
+      "name": "mail_inbox_batch",
+      "description": "Khi cần tạo nhiều địa chỉ một lần (ví dụ mỗi nhân viên một hộp), tạo hàng loạt trong quota gói; lỗi từng hộp không hủy cả batch. / Use to create many inboxes at once."
+    },
+    {
+      "name": "cloud_domain_search",
+      "description": "Kiểm tra tên miền còn trống và xem giá mua (VND, đã VAT). KHÔNG cần đăng nhập MONA Pass — gọi được ngay cả khi người dùng chưa có tài khoản; dùng trước khi mua/giữ chỗ để biết available/price."
+    },
+    {
+      "name": "cloud_domain_registrant_get",
+      "description": "Lấy thông tin chủ thể (registrant) đã lưu. Cần dữ liệu này để mua tên miền."
+    },
+    {
+      "name": "cloud_domain_registrant_set",
+      "description": "Lưu thông tin chủ thể để đăng ký tên miền. HỎI NGƯỜI DÙNG cung cấp NGAY TRONG PHIÊN: họ tên, email, điện thoại, địa chỉ. Tên miền .vn cá nhân cần thêm CCCD 12 số + ngày sinh (DD/MM/YYYY) + giới tính; .vn tổ chức cần org_name + tax_code (MST) + representative. Lưu 1 lần, tái dùng cho các domain sau. Không tự bịa dữ liệu — thiếu trường nào thì hỏi đúng trường đó."
+    },
+    {
+      "name": "cloud_domain_buy",
+      "description": "Mua tên miền và trừ ví VND — làm trọn trong phiên; người dùng chỉ quét QR và xác nhận, không phải đăng ký trước hay tự làm trên web. Trước khi gọi: 1. cloud_domain_search để xem giá + còn trống. 2. Hỏi người dùng xác nhận chính tả tên miền (vd: \"Đăng ký example.vn nhé?\") → spelling_confirmed. WHOIS không sửa được sau khi mua. 3. Hỏi duyệt chi phí (giá từ search). 4. cloud_domain_registrant_set để lưu thông tin chủ thể (hỏi người dùng ngay trong phiên); .vn cần CCCD/MST. Khi gọi mà trả 402 insuff"
+    },
+    {
+      "name": "cloud_domain_reserve",
+      "description": "Giữ chỗ tên miền 30 phút cho người dùng CHƯA có MONA Pass (hoặc chưa login trên máy này) — không trừ tiền, không đăng ký thật, chỉ khoá tên trong hệ MONA Cloud. Dùng khi người dùng muốn mua ngay trong phiên mà không muốn \"đi đăng ký\" trước: bạn đã dựng app, chọn tên, chỉ cần người bấm. Bắt buộc hỏi người dùng: tên miền (xác nhận chính tả → spelling_confirmed), email, số điện thoại (kênh nhận link claim + hoá đơn). Hỏi thêm 1 câu nhẹ: \"nhận thông báo ưu đãi MONA Cloud không?\" → marketing_consent;"
+    },
+    {
+      "name": "cloud_domain_reserve_status",
+      "description": "Xem reservation đã nhận tiền chưa / đã claim chưa / còn hạn không. Guest truyền claim_token (hoặc guest_token) nhận từ cloud_domain_reserve; chủ reservation đã login thì không cần. Đọc next_step trong kết quả để biết bước kế."
+    },
+    {
+      "name": "cloud_domain_claim",
+      "description": "Gắn reservation vào MONA Pass đang đăng nhập, kéo tiền đã chuyển (nếu có) về ví rồi MUA ngay. Cần đăng nhập (monacloud-mcp login) — lần đầu đăng nhập MONA Cloud tự tạo hồ sơ + ví, không có form đăng ký riêng. Idempotent: gọi lại khi trả 402 (ví chưa đủ → cloud_topup hoặc chờ tiền QR vào) hoặc 422 registrant_required (→ cloud_domain_registrant_set rồi claim lại; tiền vẫn nằm trong ví). Kết quả như cloud_domain_buy (order id, status, suggested_next)."
+    },
+    {
+      "name": "cloud_domain_reserve_release",
+      "description": "Huỷ reservation chưa nhận tiền (người dùng đổi ý / chọn tên khác). Đã có tiền vào thì không huỷ được — dùng cloud_domain_claim."
+    },
+    {
+      "name": "cloud_domain_list",
+      "description": "Liệt kê tên miền đã đưa vào MONA Cloud (import + mua). sandbox=true → xem domain sandbox."
+    },
+    {
+      "name": "cloud_domain_verify_start",
+      "description": "Sinh bản khai đã điền sẵn và link upload hồ sơ .vn. Dùng sau khi mua tên miền .vn (status=pending_verification)."
+    },
+    {
+      "name": "cloud_domain_verify_status",
+      "description": "Kiểm tra trạng thái duyệt hồ sơ đăng ký .vn (profile_status từ MONA Host)."
+    },
+    {
+      "name": "cloud_domain_health",
+      "description": "Kiểm tra hạn đăng ký, trạng thái hồ sơ, NS, SSL và cảnh báo tên miền đã mua."
+    },
+    {
+      "name": "cloud_domain_renew",
+      "description": "Gia hạn tên miền đã mua qua MONA Cloud. LUÔN gọi dry_run=true trước để lấy price_vnd (đã VAT), HỎI người dùng duyệt số tiền, rồi gọi lại dry_run=false — lúc đó trừ ví VND và gia hạn thật ở registrar. 402 insufficient_balance → cloud_topup in QR cho người dùng quét, chờ paid rồi gọi lại. 502 retryable → tiền đang giữ chờ đối soát, đừng gọi lại liên tục; báo người dùng."
+    },
+    {
+      "name": "cloud_domain_wait",
+      "description": "Long-poll cho đến khi tên miền chuyển sang active/failed (mặc định timeout=60s). Dùng sau cloud_domain_buy để chờ MONA Host xử lý."
+    },
+    {
+      "name": "cloud_domain_webhook_set",
+      "description": "Đăng ký URL nhận sự kiện domain.status_changed (ký HMAC). Mỗi user 1 webhook; gọi lại để cập nhật."
+    },
+    {
+      "name": "cloud_domain_attach",
+      "description": "Gắn tên miền vào app đã deploy. Tên miền .vn chưa active vẫn gọi được — attach đặt trước, server tự hoàn tất sau khi hồ sơ được duyệt và gửi webhook domain.status_changed. Dùng cloud_app_list để lấy app_id; domain_id là ID của domain row (từ cloud_domain_list)."
+    },
+    {
+      "name": "cloud_domain_dns_list",
+      "description": "Liệt kê bản ghi DNS (A/CNAME/MX/TXT...) của tên miền đăng ký tại MONA Cloud. domain_id lấy từ cloud_domain_list."
+    },
+    {
+      "name": "cloud_domain_dns_add",
+      "description": "Thêm 1 bản ghi DNS. Vd trỏ web: type=A, name=@, data=<IP>. Trỏ www: type=CNAME, name=www, data=<domain>. AI làm trọn."
+    },
+    {
+      "name": "cloud_domain_dns_update",
+      "description": "Sửa 1 bản ghi DNS theo record_id (lấy từ cloud_domain_dns_list)."
+    },
+    {
+      "name": "cloud_domain_dns_delete",
+      "description": "Xoá 1 bản ghi DNS theo record_id."
+    },
+    {
+      "name": "cloud_domain_ns_set",
+      "description": "Đổi NS cho tên miền (≥2). Vd giữ DNS ở MONA: ns1.mona.host, ns2.mona.host. Hoặc chuyển sang Cloudflare/nhà khác. AI làm hoàn toàn."
+    },
+    {
+      "name": "agent_templates_list",
+      "description": "Đọc template từ thư mục local, URL catalog hoặc catalog wave 1 tích hợp. Deploy dự án: cloud_app_detect rồi cloud_app_create(local_dir), sandbox trước nếu chưa có host."
+    },
+    {
+      "name": "agent_templates_get",
+      "description": "Đọc README, AGENTS.md, tools, deploy, checklist và skills của một template."
+    },
+    {
+      "name": "agent_deploy",
+      "description": "Gọi cùng runtime với cloud_agent_deploy. Deploy thư mục: cloud_app_detect → cloud_app_create(local_dir); git dùng repo_url (đã live), sandbox trước nếu chưa có host."
+    },
+    {
+      "name": "monapay_me",
+      "description": "Lấy thông tin tài khoản MONA Pay đang đăng nhập (id, tên, trạng thái). / Get current MONA Pay client profile."
+    },
+    {
+      "name": "monapay_whoami",
+      "description": "Xác nhận client credentials đang hoạt động, trả tên tài khoản và gói hiện tại. / Verify connection and return account name and plan."
+    },
+    {
+      "name": "monapay_list_bank_accounts",
+      "description": "Liệt kê tài khoản ngân hàng (ACB…) đã nối vào MONA Pay. / List linked bank accounts."
+    },
+    {
+      "name": "monapay_list_virtual_accounts",
+      "description": "Liệt kê tài khoản ảo thuộc một tài khoản ngân hàng. / List virtual accounts of a bank account."
+    },
+    {
+      "name": "monapay_link_bank_start",
+      "description": "Bước 1/4: đăng ký tài khoản ACB + VA. OTP do ngân hàng gửi về điện thoại của người dùng; agent phải HỎI người dùng OTP rồi mới gọi tool xác thực, không được tự đoán. / Step 1/4: register the ACB account and VA. The OTP is sent by the bank to the user’s phone; the agent MUST ASK the user before calling the verification tool and must never guess it."
+    },
+    {
+      "name": "monapay_link_bank_verify_otp",
+      "description": "Bước 2/4: OTP do ngân hàng gửi về điện thoại của người dùng, agent phải HỎI người dùng rồi mới gọi tool này; tuyệt đối không tự đoán OTP. / Step 2/4: the OTP is sent by the bank to the user’s phone; the agent MUST ASK the user before calling this tool and must never guess the OTP."
+    },
+    {
+      "name": "monapay_notification_register",
+      "description": "Bước 3/4: đăng ký nhận thông báo giao dịch tức thì. OTP lần 2 do ngân hàng gửi về điện thoại của người dùng; agent phải HỎI người dùng rồi mới gọi tool xác thực, không được tự đoán. / Step 3/4: register real-time transaction notifications. The second OTP is sent by the bank to the user’s phone; the agent MUST ASK the user before verification and must never guess it."
+    },
+    {
+      "name": "monapay_notification_verify_otp",
+      "description": "Bước 4/4: OTP do ngân hàng gửi về điện thoại của người dùng, agent phải HỎI người dùng rồi mới gọi tool này; tuyệt đối không tự đoán OTP. / Step 4/4: the OTP is sent by the bank to the user’s phone; the agent MUST ASK the user before calling this tool and must never guess the OTP."
+    },
+    {
+      "name": "monapay_get_payment_profile",
+      "description": "Lấy tên shop, nhận diện và tài khoản mặc định dùng cho trang thanh toán. / Get the hosted-checkout payment profile."
+    },
+    {
+      "name": "monapay_set_payment_profile",
+      "description": "Tạo hoặc cập nhật tên shop, nhận diện và tài khoản nhận tiền mặc định trước khi tạo checkout. Secret ký redirect chỉ được API trả một lần. / Create or update the hosted-checkout payment profile."
+    },
+    {
+      "name": "monapay_create_checkout",
+      "description": "Tạo link thu tiền, đưa link cho khách hoặc chuyển hướng checkout; đợi webhook CHECKOUT_PAID trước khi giao hàng. / Create a hosted checkout link; wait for CHECKOUT_PAID before fulfilment."
+    },
+    {
+      "name": "monapay_get_checkout",
+      "description": "Lấy trạng thái và chi tiết checkout theo ID; nên kiểm tra server-side trước khi giao hàng. / Get a checkout by ID."
+    },
+    {
+      "name": "monapay_list_checkouts",
+      "description": "Liệt kê checkout theo trạng thái, mã đơn, khoảng ngày và phân trang. / List and filter hosted checkouts."
+    },
+    {
+      "name": "monapay_cancel_checkout",
+      "description": "Huỷ checkout đang pending; checkout đã paid, expired hoặc cancelled không thể huỷ lại. / Cancel a pending checkout."
+    },
+    {
+      "name": "monapay_create_qr",
+      "description": "Tạo mã VietQR động điền sẵn số tiền + nội dung cho một đơn hàng qua ACB. Khách quét là tiền vào tài khoản ảo, MONA Pay bắn webhook. / Create a dynamic VietQR for an order."
+    },
+    {
+      "name": "monapay_cancel_qr",
+      "description": "Huỷ một mã VietQR động đã tạo. / Cancel a dynamic QR."
+    },
+    {
+      "name": "monapay_list_transactions",
+      "description": "Liệt kê giao dịch tiền vào theo tài khoản ảo, phân trang tối đa 100/trang; dùng để đối soát. / List incoming transactions."
+    },
+    {
+      "name": "monapay_sandbox_transaction",
+      "description": "Tạo một giao dịch tiền vào GIẢ: chưa nối ngân hàng thì MONA Pay tự cấp VA sandbox SBX; MONA Pay ghi giao dịch, bắn webhook có chữ ký, gửi Telegram/email/Zalo, khớp checkout như tiền thật, không tính hạn mức. / Create a fake incoming transaction in the sandbox."
+    },
+    {
+      "name": "monapay_list_webhooks",
+      "description": "Liệt kê webhook đã cấu hình. / List webhook configs."
+    },
+    {
+      "name": "monapay_create_webhook",
+      "description": "Đăng ký URL nhận webhook khi có tiền vào; khuyến nghị auth_type HMAC_SHA256 + secret_key. / Create a webhook config."
+    },
+    {
+      "name": "monapay_update_webhook",
+      "description": "Cập nhật webhook (URL, secret, bật/tắt). / Update a webhook config."
+    },
+    {
+      "name": "monapay_delete_webhook",
+      "description": "Xoá một webhook config. / Delete a webhook config."
+    },
+    {
+      "name": "monapay_test_webhook",
+      "description": "MONA Pay gửi một giao dịch giả (is_dummy) tới URL để kiểm tra endpoint + chữ ký. / Send a dummy webhook."
+    },
+    {
+      "name": "monapay_webhook_logs",
+      "description": "Lịch sử từng lần gửi (HTTP code, thời gian phản hồi, nhãn lỗi). / Webhook delivery logs."
+    },
+    {
+      "name": "monapay_webhook_stats",
+      "description": "Tỷ lệ thành công, P95, phân loại lỗi. / Webhook delivery stats."
+    },
+    {
+      "name": "monapay_list_email_configs",
+      "description": "Liệt kê các cấu hình gửi thông báo email và trạng thái xác minh người nhận. / List email notification configs and recipient verification status."
+    },
+    {
+      "name": "monapay_create_email_config",
+      "description": "Tạo kênh thông báo email. Sau khi tạo, MONA Pay gửi mã 6 số tới từng địa chỉ; hỏi người dùng mã rồi gọi monapay_verify_email; không tự đoán mã. / Create an email notification config. MONA Pay sends a 6-digit code to each address; ask the user for each code, call monapay_verify_email, and never guess a code."
+    },
+    {
+      "name": "monapay_update_email_config",
+      "description": "Cập nhật tên, người nhận, sự kiện, VA hoặc trạng thái bật/tắt của cấu hình email. Người nhận mới phải xác minh trước khi cấu hình hoạt động. / Update an email config; new recipients must be verified before activation."
+    },
+    {
+      "name": "monapay_delete_email_config",
+      "description": "Xoá vĩnh viễn một cấu hình email. / Permanently delete an email notification config."
+    },
+    {
+      "name": "monapay_verify_email",
+      "description": "Xác minh một người nhận bằng đúng mã 6 số người dùng đọc từ hộp thư; phải hỏi người dùng và không tự đoán mã. / Verify a recipient with the exact 6-digit code supplied by the user; never guess it."
+    },
+    {
+      "name": "monapay_resend_email_verification",
+      "description": "Gửi mã xác minh mới tới một địa chỉ trong cấu hình; giới hạn 5 lần/địa chỉ/giờ. / Resend a verification code, limited to five requests per address per hour."
+    },
+    {
+      "name": "monapay_test_email",
+      "description": "Gửi email mẫu tới các địa chỉ đã xác minh trong cấu hình. / Send a test notification to verified recipients in a config."
+    },
+    {
+      "name": "monapay_email_logs",
+      "description": "Tra meta từng lần gửi email, không chứa nội dung thư; lọc theo cấu hình, trạng thái, sự kiện và ngày. / List email delivery metadata; message bodies are never stored."
+    },
+    {
+      "name": "monapay_email_stats",
+      "description": "Lấy tổng số gửi, tỷ lệ thành công, P95 và nhóm lỗi trong khoảng ngày. / Get email delivery totals, success rate, P95 latency and error groups."
+    },
+    {
+      "name": "monapay_list_email_suppressions",
+      "description": "Liệt kê địa chỉ bị suppression do bounce, khiếu nại hoặc tắt tay. / List suppressed recipient addresses."
+    },
+    {
+      "name": "monapay_remove_email_suppression",
+      "description": "Gỡ suppression sau khi đã sửa nguyên nhân; client tự chịu trách nhiệm khi gửi lại. / Remove a suppression after fixing its cause; the client accepts responsibility for future sends."
+    },
+    {
+      "name": "monapay_list_zalo_groups",
+      "description": "Liệt kê cấu hình thông báo nhóm Zalo; nhóm phải có bot Gấu Mona."
+    },
+    {
+      "name": "monapay_create_zalo_group",
+      "description": "Nối nhóm có bot Gấu Mona bằng group_id 10–25 chữ số lấy từ MONA Account/PMS; Zalo không parse Markdown, nên template phải là text thuần."
+    },
+    {
+      "name": "monapay_update_zalo_group",
+      "description": "Sửa cấu hình nhóm có bot Gấu Mona; group_id lấy từ MONA Account/PMS và template dùng text thuần vì Zalo không parse Markdown."
+    },
+    {
+      "name": "monapay_delete_zalo_group",
+      "description": "Xoá một cấu hình thông báo nhóm Zalo."
+    },
+    {
+      "name": "monapay_test_zalo_group",
+      "description": "Gửi tin thử text thuần; nhóm phải có bot Gấu Mona vì Zalo không parse Markdown."
+    },
+    {
+      "name": "monapay_zalo_group_logs",
+      "description": "Tra lịch sử gửi vào nhóm Zalo, lọc trạng thái thành công hoặc thất bại."
+    },
+    {
+      "name": "monapay_retry_transaction",
+      "description": "Gửi lại webhook hoặc Telegram cho giao dịch đã có. / Re-send webhook/Telegram for a transaction."
+    },
+    {
+      "name": "monapay_generate_key",
+      "description": "Sinh client_secret mới (hiện 1 lần) để dùng header X-Client-Secret. / Generate a client secret."
+    },
+    {
+      "name": "monapay_rotate_key",
+      "description": "Dùng khi secret nghi lộ; xoay key hiện tại bằng X-Client-Secret. Sau khi xoay phải cập nhật MONAPAY_CLIENT_SECRET ở plugin/agent rồi khởi động lại. / Rotate the current API key secret after suspected exposure, then update MONAPAY_CLIENT_SECRET."
+    },
+    {
+      "name": "monapay_verify_signature",
+      "description": "Tính và so chữ ký HMAC-SHA256 của một webhook MONA Pay từ raw body + timestamp + secret, không gọi mạng. / Verify a webhook signature locally."
+    },
+    {
+      "name": "monapay_generate_webhook_snippet",
+      "description": "Trả code mẫu endpoint nhận webhook MONA Pay + verify HMAC đúng chuẩn cho PHP / Node / Python, kèm payload mẫu. / Get a webhook receiver snippet."
+    }
+  ]
+}

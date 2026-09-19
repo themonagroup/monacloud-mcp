@@ -9,3 +9,4 @@ __pycache__/
 CODEX-NOTE.md
 .DS_Store
 logs/
+build/
