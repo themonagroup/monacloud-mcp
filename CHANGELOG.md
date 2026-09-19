@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.9 (2026-09-19)
+
+### Changed
+- mcpName đổi sang namespace domain `vn.monacloud/monacloud-mcp` (MCP Registry xác thực DNS TXT trên monacloud.vn).
+
+
 ## 0.10.8 (2026-09-19)
 
 ### Changed
