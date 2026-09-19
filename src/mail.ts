@@ -5,6 +5,7 @@ import { z } from 'zod';
 import type { CloudClients } from './clients.js';
 import type { Config } from './config.js';
 import { runTool } from './errors.js';
+import { toolAnnotationsForName } from './monapay.js';
 
 const id = z.string().trim().min(1).max(255);
 const email = z.string().max(320).regex(/^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/, 'Cần địa chỉ email hợp lệ.');
@@ -40,24 +41,28 @@ function idempotencyHeaders(key?: string): Record<string, string> {
 
 export function registerMailTools(server: McpServer, clients: CloudClients, config: Config): void {
   server.registerTool('mail_account', {
+    annotations: toolAnnotationsForName('mail_account'),
     title: 'Tài khoản MONA Mail',
     description: `Khi bắt đầu tích hợp email, đọc tài khoản, quota và bước kế tiếp. / Use first to read account and quota at ${config.monamailApi}.`,
     inputSchema: empty,
   }, () => runTool(() => clients.mail('/v1/account')));
 
   server.registerTool('mail_plans', {
+    annotations: toolAnnotationsForName('mail_plans'),
     title: 'Gói MONA Mail',
     description: 'Khi chọn gói gửi mail, đọc giá và quota hiện hành. / Use to compare current email plans.',
     inputSchema: empty,
   }, () => runTool(() => clients.mail('/v1/plans')));
 
   server.registerTool('mail_plan_set', {
+    annotations: toolAnnotationsForName('mail_plan_set'),
     title: 'Đổi gói MONA Mail',
     description: 'Khi cần đổi quota, chọn gói; gói trả phí trừ ví VND, thiếu tiền gọi cloud_topup. / Use to change the email plan.',
     inputSchema: z.object({ plan: z.enum(['free', 'khoi-nghiep', 'kinh-doanh', 'doanh-nghiep']) }).strict(),
   }, ({ plan }) => runTool(() => clients.mail('/v1/account/plan', { method: 'PUT', body: { plan } })));
 
   server.registerTool('mail_send', {
+    annotations: toolAnnotationsForName('mail_send'),
     title: 'Gửi email giao dịch',
     description: 'Khi gửi OTP hoặc thông báo, dùng domain đã verify; onboarding@monamail.vn chỉ gửi tới email chủ. sandbox=true thử 0đ, không gửi ra Internet. / Use to send transactional email or test in sandbox.',
     inputSchema: z.object({
@@ -89,12 +94,14 @@ export function registerMailTools(server: McpServer, clients: CloudClients, conf
   }));
 
   server.registerTool('mail_status', {
+    annotations: toolAnnotationsForName('mail_status'),
     title: 'Trạng thái email',
     description: 'Khi cần xác nhận thư đã giao, đọc trạng thái, events và sandbox_preview. / Use to inspect an email after sending.',
     inputSchema: z.object({ email_id: id }).strict(),
   }, ({ email_id }) => runTool(() => clients.mail(`/v1/emails/${encodeURIComponent(email_id)}`)));
 
   server.registerTool('mail_list', {
+    annotations: toolAnnotationsForName('mail_list'),
     title: 'Danh sách email',
     description: 'Khi tra lịch sử gửi, lọc theo trạng thái, người nhận hoặc thời gian. / Use to search sent email history.',
     inputSchema: z.object({
@@ -106,6 +113,7 @@ export function registerMailTools(server: McpServer, clients: CloudClients, conf
   }, (query) => runTool(() => clients.mail('/v1/emails', { query })));
 
   server.registerTool('mail_domain_add', {
+    annotations: toolAnnotationsForName('mail_domain_add'),
     title: 'Thêm domain gửi email',
     description: 'Khi gửi bằng domain của app, thêm domain. Trả record DNS; nếu người dùng dùng Cloudflare có thể gọi mail_domain_cloudflare với token của họ (không lưu). / Use to register a sender domain and get DNS records.',
     inputSchema: z.object({
@@ -120,6 +128,7 @@ export function registerMailTools(server: McpServer, clients: CloudClients, conf
   })));
 
   server.registerTool('mail_domain_verify', {
+    annotations: toolAnnotationsForName('mail_domain_verify'),
     title: 'Xác minh DNS domain',
     description: 'Khi đã thêm DNS, kiểm DKIM và trạng thái domain. / Use after adding DNS records to verify the sender domain.',
     inputSchema: z.object({ domain_id: id, ...idempotency }).strict(),
@@ -128,6 +137,7 @@ export function registerMailTools(server: McpServer, clients: CloudClients, conf
   })));
 
   server.registerTool('mail_domain_cloudflare', {
+    annotations: toolAnnotationsForName('mail_domain_cloudflare'),
     title: 'Thêm DNS qua Cloudflare',
     description: 'Khi người dùng cung cấp token Cloudflare, thêm DNS rồi verify domain. Token dùng một lần, không lưu, không log. / Use a user-provided Cloudflare token to configure DNS and verify.',
     inputSchema: z.object({ domain_id: id, api_token: z.string().trim().min(1).max(4096), ...idempotency }).strict(),
@@ -136,12 +146,14 @@ export function registerMailTools(server: McpServer, clients: CloudClients, conf
   })));
 
   server.registerTool('mail_domains_list', {
+    annotations: toolAnnotationsForName('mail_domains_list'),
     title: 'Domain MONA Mail',
     description: 'Khi chọn địa chỉ gửi, xem domain và trạng thái xác minh. / Use to find verified sender domains.',
     inputSchema: empty,
   }, () => runTool(() => clients.mail('/v1/domains')));
 
   server.registerTool('mail_api_key_create', {
+    annotations: toolAnnotationsForName('mail_api_key_create'),
     title: 'Tạo API key MONA Mail',
     description: 'Khi tích hợp SDK vào app, tạo key live hoặc test. Key chỉ trả một lần; ghi vào .env của app dưới tên MONAMAIL_API_KEY, không cần in ra chat. / Use to create an app key; store the one-time secret in .env.',
     inputSchema: z.object({ name: id, mode: z.enum(['live', 'test']), ...idempotency }).strict(),
@@ -150,18 +162,21 @@ export function registerMailTools(server: McpServer, clients: CloudClients, conf
   })));
 
   server.registerTool('mail_api_keys_list', {
+    annotations: toolAnnotationsForName('mail_api_keys_list'),
     title: 'Danh sách API key',
     description: 'Khi kiểm tra key của app, đọc prefix và trạng thái; không trả secret. / Use to inspect existing API key metadata.',
     inputSchema: empty,
   }, () => runTool(() => clients.mail('/v1/api-keys')));
 
   server.registerTool('mail_api_key_revoke', {
+    annotations: toolAnnotationsForName('mail_api_key_revoke'),
     title: 'Thu hồi API key',
     description: 'Khi key không còn dùng hoặc bị lộ, thu hồi bằng key_id. / Use to revoke an unused or compromised API key.',
     inputSchema: z.object({ key_id: id }).strict(),
   }, ({ key_id }) => runTool(() => clients.mail(`/v1/api-keys/${encodeURIComponent(key_id)}`, { method: 'DELETE' })));
 
   server.registerTool('mail_webhook_create', {
+    annotations: toolAnnotationsForName('mail_webhook_create'),
     title: 'Tạo webhook email',
     description: 'Khi app cần nhận sự kiện gửi hoặc bounce, đăng ký HTTPS webhook; lưu secret một lần vào .env, không log. / Use to subscribe an app to email events.',
     inputSchema: z.object({ url: httpsUrl, events: z.array(events).min(1).max(8), ...idempotency }).strict(),
@@ -170,12 +185,14 @@ export function registerMailTools(server: McpServer, clients: CloudClients, conf
   })));
 
   server.registerTool('mail_webhooks_list', {
+    annotations: toolAnnotationsForName('mail_webhooks_list'),
     title: 'Danh sách webhook email',
     description: 'Khi kiểm tra cấu hình sự kiện của app, liệt kê webhook. / Use to inspect registered email webhooks.',
     inputSchema: empty,
   }, () => runTool(() => clients.mail('/v1/webhooks')));
 
   server.registerTool('mail_webhook_test', {
+    annotations: toolAnnotationsForName('mail_webhook_test'),
     title: 'Thử webhook email',
     description: 'Khi đã có endpoint, gửi mẫu email.delivered để kiểm tra HTTP response. / Use to test webhook delivery to an app.',
     inputSchema: z.object({ webhook_id: id, ...idempotency }).strict(),
@@ -184,18 +201,21 @@ export function registerMailTools(server: McpServer, clients: CloudClients, conf
   })));
 
   server.registerTool('mail_suppressions_list', {
+    annotations: toolAnnotationsForName('mail_suppressions_list'),
     title: 'Địa chỉ ngừng gửi',
     description: 'Khi thư bị suppressed, xem địa chỉ và lý do ngừng gửi. / Use to diagnose suppressed recipients.',
     inputSchema: empty,
   }, () => runTool(() => clients.mail('/v1/suppressions')));
 
   server.registerTool('mail_suppression_remove', {
+    annotations: toolAnnotationsForName('mail_suppression_remove'),
     title: 'Gỡ suppression tài khoản',
     description: 'Khi đã xử lý nguyên nhân chặn, gỡ suppression của tài khoản; lớp toàn hệ không gỡ được. / Use to remove an account-level suppression.',
     inputSchema: z.object({ email }).strict(),
   }, ({ email }) => runTool(() => clients.mail(`/v1/suppressions/${encodeURIComponent(email)}`, { method: 'DELETE' })));
 
   server.registerTool('mail_template_create', {
+    annotations: toolAnnotationsForName('mail_template_create'),
     title: 'Tạo mẫu email',
     description: 'Khi app dùng lại nội dung mail, tạo template với biến {{ten_bien}}. / Use to create a reusable email template.',
     inputSchema: z.object({ name: id, subject, html: z.string().min(1), text: z.string().min(1).optional(), ...idempotency }).strict(),
@@ -204,6 +224,7 @@ export function registerMailTools(server: McpServer, clients: CloudClients, conf
   })));
 
   server.registerTool('mail_stats', {
+    annotations: toolAnnotationsForName('mail_stats'),
     title: 'Thống kê gửi email',
     description: 'Khi đánh giá khả năng giao thư, đọc tỷ lệ delivered và bounce theo thời gian. / Use to review email delivery statistics.',
     inputSchema: z.object({ from: dateOrTimestamp.optional(), to: dateOrTimestamp.optional() }).strict().refine(
@@ -214,6 +235,7 @@ export function registerMailTools(server: McpServer, clients: CloudClients, conf
 
   // ── Hộp thư AI agent (nhận + đọc + trả lời) ─────────────────────────────
   server.registerTool('mail_inbox_create', {
+    annotations: toolAnnotationsForName('mail_inbox_create'),
     title: 'Tạo hộp thư agent',
     description: 'Khi cần một địa chỉ email cho agent trực (đọc thư, trả lời), tạo hộp. Bỏ domain để dùng miền agent.monamail.vn (nhận ngay); truyền domain đã verify để có địa chỉ brand. / Use to create an inbox an AI agent can read and reply from.',
     inputSchema: z.object({ agent_id: agentId, domain: domain.optional() }).strict(),
@@ -222,24 +244,28 @@ export function registerMailTools(server: McpServer, clients: CloudClients, conf
   })));
 
   server.registerTool('mail_inbox_list', {
+    annotations: toolAnnotationsForName('mail_inbox_list'),
     title: 'Danh sách hộp agent',
     description: 'Khi cần biết agent đang trực những hộp nào, liệt kê hộp còn hoạt động. / Use to list active agent inboxes.',
     inputSchema: empty,
   }, () => runTool(() => clients.mail('/v1/inboxes')));
 
   server.registerTool('mail_inbox_get', {
+    annotations: toolAnnotationsForName('mail_inbox_get'),
     title: 'Xem hộp agent',
     description: 'Khi cần địa chỉ và trạng thái của một hộp, đọc chi tiết. / Use to read one inbox.',
     inputSchema: z.object({ inbox_id: id }).strict(),
   }, ({ inbox_id }) => runTool(() => clients.mail(`/v1/inboxes/${encodeURIComponent(inbox_id)}`)));
 
   server.registerTool('mail_inbox_delete', {
+    annotations: toolAnnotationsForName('mail_inbox_delete'),
     title: 'Xóa hộp agent',
     description: 'Khi hộp không còn dùng, xóa mềm; thư cũ còn đọc tới hết retention. / Use to soft-delete an inbox.',
     inputSchema: z.object({ inbox_id: id }).strict(),
   }, ({ inbox_id }) => runTool(() => clients.mail(`/v1/inboxes/${encodeURIComponent(inbox_id)}`, { method: 'DELETE' })));
 
   server.registerTool('mail_inbox_messages', {
+    annotations: toolAnnotationsForName('mail_inbox_messages'),
     title: 'Thư trong hộp agent',
     description: 'Khi trực hộp, liệt kê thư nhận; lọc seen=false để lấy thư chưa xử lý, phân trang bằng cursor. / Use to list messages an agent needs to handle.',
     inputSchema: z.object({
@@ -254,6 +280,7 @@ export function registerMailTools(server: McpServer, clients: CloudClients, conf
   })));
 
   server.registerTool('mail_inbox_message', {
+    annotations: toolAnnotationsForName('mail_inbox_message'),
     title: 'Đọc thư trong hộp',
     description: 'Khi cần nội dung đầy đủ, header và đính kèm của một thư, đọc chi tiết; lần đọc đầu đánh dấu đã xem. / Use to read a full inbox message before replying.',
     inputSchema: z.object({ inbox_id: id, message_id: id }).strict(),
@@ -262,6 +289,7 @@ export function registerMailTools(server: McpServer, clients: CloudClients, conf
   )));
 
   server.registerTool('mail_inbox_reply', {
+    annotations: toolAnnotationsForName('mail_inbox_reply'),
     title: 'Trả lời thư trong hộp',
     description: 'Khi agent trả lời khách, gửi đúng thread (In-Reply-To, References) từ địa chỉ hộp; cần text hoặc html. Việc khó rút lại (hứa giá, chuyển tiền) thì báo người, đừng tự gửi. / Use to reply to an inbox message in-thread.',
     inputSchema: z.object({ inbox_id: id, message_id: id, text: z.string().min(1).optional(), html: z.string().min(1).optional() })
@@ -272,6 +300,7 @@ export function registerMailTools(server: McpServer, clients: CloudClients, conf
   )));
 
   server.registerTool('mail_inbox_wait', {
+    annotations: toolAnnotationsForName('mail_inbox_wait'),
     title: 'Chờ thư trong hộp',
     description: 'Khi cần chờ thư tới (ví dụ mã OTP hoặc thư khớp mẫu), chờ tối đa timeout giây; có thư khớp trả full nội dung + extracted_code, hết giờ trả 204. Gọi lại nếu cần chờ lâu hơn. / Use to wait for an OTP or a matching message.',
     inputSchema: z.object({ inbox_id: id, match: inboxMatch, timeout: z.number().int().min(0).max(300).default(120) }).strict(),
@@ -280,6 +309,7 @@ export function registerMailTools(server: McpServer, clients: CloudClients, conf
   })));
 
   server.registerTool('mail_inbox_update', {
+    annotations: toolAnnotationsForName('mail_inbox_update'),
     title: 'Cấu hình hộp agent',
     description: 'Khi cần đặt cách hộp xử lý thư: mode redirect (tự forward thư về email chủ) | store (chỉ lưu) | ai (để AI trực), địa chỉ forward_to, chat Telegram nhận báo, hoặc bật/tắt hộp. / Use to configure an inbox: redirect-forward email, Telegram chat, mode, active.',
     inputSchema: z.object({
@@ -292,6 +322,7 @@ export function registerMailTools(server: McpServer, clients: CloudClients, conf
   }, ({ inbox_id, ...body }) => runTool(() => clients.mail(`/v1/inboxes/${encodeURIComponent(inbox_id)}`, { method: 'PATCH', body })));
 
   server.registerTool('mail_inbox_batch', {
+    annotations: toolAnnotationsForName('mail_inbox_batch'),
     title: 'Tạo nhiều hộp agent',
     description: 'Khi cần tạo nhiều địa chỉ một lần (ví dụ mỗi nhân viên một hộp), tạo hàng loạt trong quota gói; lỗi từng hộp không hủy cả batch. / Use to create many inboxes at once.',
     inputSchema: z.object({

@@ -2,6 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { CloudClients } from './clients.js';
 import { runTool } from './errors.js';
+import { toolAnnotationsForName } from './monapay.js';
 
 const domainName = z.string().trim().toLowerCase()
   .min(3).max(253)
@@ -31,6 +32,7 @@ const registrantSchema = z.object({
 export function registerDomainTools(server: McpServer, clients: CloudClients): void {
 
   server.registerTool('cloud_domain_search', {
+    annotations: toolAnnotationsForName('cloud_domain_search'),
     title: 'Tìm kiếm + báo giá tên miền',
     description: 'Kiểm tra tên miền còn trống và xem giá mua (VND, đã VAT). KHÔNG cần đăng nhập MONA Pass — gọi được ngay cả khi người dùng chưa có tài khoản; dùng trước khi mua/giữ chỗ để biết available/price.',
     inputSchema: z.object({
@@ -55,12 +57,14 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
   }));
 
   server.registerTool('cloud_domain_registrant_get', {
+    annotations: toolAnnotationsForName('cloud_domain_registrant_get'),
     title: 'Xem thông tin chủ thể đăng ký tên miền',
     description: 'Lấy thông tin chủ thể (registrant) đã lưu. Cần dữ liệu này để mua tên miền.',
     inputSchema: z.object({}).strict(),
   }, () => runTool(() => clients.vibecloud('/api/domains/registrant')));
 
   server.registerTool('cloud_domain_registrant_set', {
+    annotations: toolAnnotationsForName('cloud_domain_registrant_set'),
     title: 'Cập nhật thông tin chủ thể đăng ký tên miền',
     description: 'Lưu thông tin chủ thể để đăng ký tên miền. HỎI NGƯỜI DÙNG cung cấp NGAY TRONG PHIÊN: họ tên, email, điện thoại, địa chỉ. Tên miền .vn cá nhân cần thêm CCCD 12 số + ngày sinh (DD/MM/YYYY) + giới tính; .vn tổ chức cần org_name + tax_code (MST) + representative. Lưu 1 lần, tái dùng cho các domain sau. Không tự bịa dữ liệu — thiếu trường nào thì hỏi đúng trường đó.',
     inputSchema: registrantSchema,
@@ -70,6 +74,7 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
   })));
 
   server.registerTool('cloud_domain_buy', {
+    annotations: toolAnnotationsForName('cloud_domain_buy'),
     title: 'Mua tên miền',
     description: [
       'Mua tên miền và trừ ví VND — làm trọn trong phiên; người dùng chỉ quét QR và xác nhận, không phải đăng ký trước hay tự làm trên web. Trước khi gọi:',
@@ -101,6 +106,7 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
   // --- Guest → reserve → claim (spec monadomain §12): mua TRƯỚC khi có tài khoản ---------------
 
   server.registerTool('cloud_domain_reserve', {
+    annotations: toolAnnotationsForName('cloud_domain_reserve'),
     title: 'Giữ chỗ tên miền + QR trả tiền (không cần tài khoản)',
     description: [
       'Giữ chỗ tên miền 30 phút cho người dùng CHƯA có MONA Pass (hoặc chưa login trên máy này) — không trừ tiền, không đăng ký thật, chỉ khoá tên trong hệ MONA Cloud.',
@@ -128,6 +134,7 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
   })));
 
   server.registerTool('cloud_domain_reserve_status', {
+    annotations: toolAnnotationsForName('cloud_domain_reserve_status'),
     title: 'Trạng thái giữ chỗ tên miền',
     description: 'Xem reservation đã nhận tiền chưa / đã claim chưa / còn hạn không. Guest truyền claim_token (hoặc guest_token) nhận từ cloud_domain_reserve; chủ reservation đã login thì không cần. Đọc next_step trong kết quả để biết bước kế.',
     inputSchema: z.object({
@@ -140,6 +147,7 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
   )));
 
   server.registerTool('cloud_domain_claim', {
+    annotations: toolAnnotationsForName('cloud_domain_claim'),
     title: 'Nhận reservation về tài khoản + mua (claim = đăng ký = trả tiền)',
     description: [
       'Gắn reservation vào MONA Pass đang đăng nhập, kéo tiền đã chuyển (nếu có) về ví rồi MUA ngay. Cần đăng nhập (monacloud-mcp login) — lần đầu đăng nhập MONA Cloud tự tạo hồ sơ + ví, không có form đăng ký riêng.',
@@ -158,6 +166,7 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
   )));
 
   server.registerTool('cloud_domain_reserve_release', {
+    annotations: toolAnnotationsForName('cloud_domain_reserve_release'),
     title: 'Nhả chỗ tên miền đã giữ',
     description: 'Huỷ reservation chưa nhận tiền (người dùng đổi ý / chọn tên khác). Đã có tiền vào thì không huỷ được — dùng cloud_domain_claim.',
     inputSchema: z.object({
@@ -170,6 +179,7 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
   )));
 
   server.registerTool('cloud_domain_list', {
+    annotations: toolAnnotationsForName('cloud_domain_list'),
     title: 'Danh sách tên miền đã import/mua',
     description: 'Liệt kê tên miền đã đưa vào MONA Cloud (import + mua). sandbox=true → xem domain sandbox.',
     inputSchema: z.object({
@@ -181,6 +191,7 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
   }));
 
   server.registerTool('cloud_domain_verify_start', {
+    annotations: toolAnnotationsForName('cloud_domain_verify_start'),
     title: 'Bắt đầu nộp hồ sơ .vn',
     description: 'Sinh bản khai đã điền sẵn và link upload hồ sơ .vn. Dùng sau khi mua tên miền .vn (status=pending_verification).',
     inputSchema: z.object({
@@ -191,6 +202,7 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
   })));
 
   server.registerTool('cloud_domain_verify_status', {
+    annotations: toolAnnotationsForName('cloud_domain_verify_status'),
     title: 'Trạng thái hồ sơ .vn',
     description: 'Kiểm tra trạng thái duyệt hồ sơ đăng ký .vn (profile_status từ MONA Host).',
     inputSchema: z.object({
@@ -199,6 +211,7 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
   }, ({ id }) => runTool(() => clients.vibecloud(`/api/domains/${encodeURIComponent(id)}/verify`)));
 
   server.registerTool('cloud_domain_health', {
+    annotations: toolAnnotationsForName('cloud_domain_health'),
     title: 'Kiểm tra sức khoẻ tên miền',
     description: 'Kiểm tra hạn đăng ký, trạng thái hồ sơ, NS, SSL và cảnh báo tên miền đã mua.',
     inputSchema: z.object({
@@ -207,6 +220,7 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
   }, ({ id }) => runTool(() => clients.vibecloud(`/api/domains/${encodeURIComponent(id)}/health`)));
 
   server.registerTool('cloud_domain_renew', {
+    annotations: toolAnnotationsForName('cloud_domain_renew'),
     title: 'Gia hạn tên miền (trừ ví VND)',
     description: [
       'Gia hạn tên miền đã mua qua MONA Cloud. LUÔN gọi dry_run=true trước để lấy price_vnd (đã VAT), HỎI người dùng duyệt số tiền, rồi gọi lại dry_run=false — lúc đó trừ ví VND và gia hạn thật ở registrar.',
@@ -224,6 +238,7 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
   )));
 
   server.registerTool('cloud_domain_wait', {
+    annotations: toolAnnotationsForName('cloud_domain_wait'),
     title: 'Chờ tên miền active',
     description: 'Long-poll cho đến khi tên miền chuyển sang active/failed (mặc định timeout=60s). Dùng sau cloud_domain_buy để chờ MONA Host xử lý.',
     inputSchema: z.object({
@@ -236,6 +251,7 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
   }));
 
   server.registerTool('cloud_domain_webhook_set', {
+    annotations: toolAnnotationsForName('cloud_domain_webhook_set'),
     title: 'Đăng ký webhook tên miền',
     description: 'Đăng ký URL nhận sự kiện domain.status_changed (ký HMAC). Mỗi user 1 webhook; gọi lại để cập nhật.',
     inputSchema: z.object({
@@ -248,6 +264,7 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
   })));
 
   server.registerTool('cloud_domain_attach', {
+    annotations: toolAnnotationsForName('cloud_domain_attach'),
     title: 'Gắn tên miền vào ứng dụng',
     description: [
       'Gắn tên miền vào app đã deploy. Tên miền .vn chưa active vẫn gọi được — attach đặt trước, server tự hoàn tất sau khi hồ sơ được duyệt và gửi webhook domain.status_changed.',
@@ -276,12 +293,14 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
   };
 
   server.registerTool('cloud_domain_dns_list', {
+    annotations: toolAnnotationsForName('cloud_domain_dns_list'),
     title: 'Xem bản ghi DNS của tên miền',
     description: 'Liệt kê bản ghi DNS (A/CNAME/MX/TXT...) của tên miền đăng ký tại MONA Cloud. domain_id lấy từ cloud_domain_list.',
     inputSchema: z.object({ domain_id: objectId }).strict(),
   }, ({ domain_id }) => runTool(() => clients.vibecloud(`/api/domains/${encodeURIComponent(domain_id)}/records`)));
 
   server.registerTool('cloud_domain_dns_add', {
+    annotations: toolAnnotationsForName('cloud_domain_dns_add'),
     title: 'Thêm bản ghi DNS',
     description: 'Thêm 1 bản ghi DNS. Vd trỏ web: type=A, name=@, data=<IP>. Trỏ www: type=CNAME, name=www, data=<domain>. AI làm trọn.',
     inputSchema: z.object({ domain_id: objectId, ...recordSchema }).strict(),
@@ -289,6 +308,7 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
     clients.vibecloud(`/api/domains/${encodeURIComponent(domain_id)}/records`, { method: 'POST', body: record })));
 
   server.registerTool('cloud_domain_dns_update', {
+    annotations: toolAnnotationsForName('cloud_domain_dns_update'),
     title: 'Sửa bản ghi DNS',
     description: 'Sửa 1 bản ghi DNS theo record_id (lấy từ cloud_domain_dns_list).',
     inputSchema: z.object({ domain_id: objectId, record_id: z.string().min(1).max(128), ...recordSchema }).strict(),
@@ -296,6 +316,7 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
     clients.vibecloud(`/api/domains/${encodeURIComponent(domain_id)}/records/${encodeURIComponent(record_id)}`, { method: 'PUT', body: record })));
 
   server.registerTool('cloud_domain_dns_delete', {
+    annotations: toolAnnotationsForName('cloud_domain_dns_delete'),
     title: 'Xoá bản ghi DNS',
     description: 'Xoá 1 bản ghi DNS theo record_id.',
     inputSchema: z.object({ domain_id: objectId, record_id: z.string().min(1).max(128) }).strict(),
@@ -303,6 +324,7 @@ export function registerDomainTools(server: McpServer, clients: CloudClients): v
     clients.vibecloud(`/api/domains/${encodeURIComponent(domain_id)}/records/${encodeURIComponent(record_id)}`, { method: 'DELETE' })));
 
   server.registerTool('cloud_domain_ns_set', {
+    annotations: toolAnnotationsForName('cloud_domain_ns_set'),
     title: 'Đổi nameserver (NS) của tên miền',
     description: 'Đổi NS cho tên miền (≥2). Vd giữ DNS ở MONA: ns1.mona.host, ns2.mona.host. Hoặc chuyển sang Cloudflare/nhà khác. AI làm hoàn toàn.',
     inputSchema: z.object({

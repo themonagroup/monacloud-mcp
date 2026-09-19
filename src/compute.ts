@@ -6,6 +6,7 @@ import { unwrapData } from './http.js';
 import { finishAppJob } from './jobs.js';
 import { detectProject } from './local.js';
 import { localAppTools } from './local-app.js';
+import { completeToolMetadata } from './monapay.js';
 
 type Row = Record<string, unknown>;
 export const APP_FLOW = 'AI làm 99%: cloud_app_detect(local_dir) offline → cloud_app_host_list, cloud_prices/cloud_packages/cloud_plan_list và cloud_balance → cloud_app_create(local_dir, sandbox=true) nếu chưa có app host để ước tính chi phí giờ/gói → hỏi human một lần duyệt chi phí nếu chưa được duyệt → cloud_app_create(local_dir, sandbox=false) → poll tới done/succeeded → kiểm và trả URL. Cần DB/Supabase? cloud_base_create (beta) — chung account/ví MONA Cloud, khớp app deploy. Sau khi app có URL, CHỦ ĐỘNG hỏi tên miền riêng: human đã có domain → cloud_app_domain_add (CNAME); chưa có → cloud_domain_search gợi 3–5 đuôi (.vn trước nếu khách Việt) kèm giá VND, hỏi xác nhận chính tả + duyệt tiền → cloud_domain_buy (đã login) hoặc cloud_domain_reserve (chưa login: QR + claim_url) → cloud_domain_attach trỏ DNS + SSL. Human đăng ký MONA Pass bằng device flow một lần; hết credit 20k thì AI gọi cloud_topup và in QR (qr_ascii) ngay trong terminal, human chỉ quét bằng app ngân hàng; AI làm các bước còn lại. App git cloud_app_create(repo_url) đã live; không gọi agent_deploy cho deploy dự án. / Detect locally, estimate, obtain cost approval once, upload and deploy, create an optional Base, return URL, then attach an optional domain.';
@@ -51,7 +52,10 @@ export function registerComputeTools(server: McpServer, clients: CloudClients) {
   // Every new compute tool keeps a mechanical legacy alias, using the same schema and handler.
   const register = (name: string, description: string, schema: z.ZodObject<any>, handler: (args: any) => unknown) => {
     for (const toolName of [name, name.replace(/^cloud_/, 'vibecloud_')]) {
+      const metadata = completeToolMetadata(toolName, undefined, undefined);
       server.registerTool(toolName, {
+        title: metadata.title,
+        annotations: metadata.annotations,
         description: toolName === name ? description : `Alias tương thích của ${name}. / Compatibility alias. ${description}`,
         inputSchema: schema,
       }, (args) => runTool(() => handler(args)));

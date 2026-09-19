@@ -4,6 +4,7 @@ import type { CloudClients } from './clients.js';
 import { CloudError, runTool } from './errors.js';
 import { pollJob, TERMINAL_JOBS } from './jobs.js';
 import { unwrapData } from './http.js';
+import { completeToolMetadata } from './monapay.js';
 
 type Row = Record<string, unknown>;
 const object = (value: unknown): Row => value && typeof value === 'object' ? value as Row : {};
@@ -56,7 +57,10 @@ async function createBase(clients: CloudClients, body: Row) {
 export function registerBaseTools(server: McpServer, clients: CloudClients) {
   const register = (name: string, description: string, schema: z.ZodObject<any>, handler: (args: any) => unknown) => {
     for (const toolName of [name, name.replace(/^cloud_/, 'vibecloud_')]) {
+      const metadata = completeToolMetadata(toolName, undefined, undefined);
       server.registerTool(toolName, {
+        title: metadata.title,
+        annotations: metadata.annotations,
         description: toolName === name ? `${description} ${baseDescription}` : `Alias tương thích của ${name}. / Compatibility alias. ${description} ${baseDescription}`,
         inputSchema: schema,
       }, (args) => runTool(() => handler(args)));

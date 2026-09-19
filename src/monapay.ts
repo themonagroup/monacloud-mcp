@@ -15,6 +15,63 @@ type ImportedTool = {
   enabled: boolean;
 };
 
+export type ToolAnnotations = {
+  readOnlyHint: boolean;
+  destructiveHint: boolean;
+  idempotentHint: boolean;
+  openWorldHint: boolean;
+};
+
+// cloud_subscription_update có thể huỷ gia hạn / dừng máy (cancel_action=stop) → xếp destructive để agent hỏi lại trước khi gọi.
+const DESTRUCTIVE = /(?:^|_)(?:delete|remove|cancel|release|rotate|stop|destroy|reset|revoke|suspend)(?:_|$)|^cloud_subscription_update$/;
+const READ_ONLY = /(?:^|_)(?:list|get|status|search|balance|ledger|health|whoami|usage|services|quote|detect|wait|logs|stats|templates|tlds|prices|packages)(?:_|$)/;
+const IDEMPOTENT_WRITE = /(?:^|_)(?:set|update|attach)(?:_|$)/;
+
+/** Mechanical metadata shared by native tools and tools imported from monapay-mcp. */
+export function toolAnnotationsForName(name: string): ToolAnnotations {
+  const canonical = name.replace(/^vibecloud_/, 'cloud_');
+  const destructiveHint = DESTRUCTIVE.test(canonical);
+  const readOnlyHint = !destructiveHint && (
+    READ_ONLY.test(canonical)
+    || canonical === 'cloud_open_console'
+    || canonical === 'mail_account'
+    || canonical === 'mail_plans'
+    || canonical === 'cloud_invoice_pdf'
+    || canonical === 'cloud_base_credentials'
+    || canonical === 'mail_inbox_message'
+    || canonical === 'mail_inbox_messages'
+    || canonical === 'monapay_me'
+    || canonical === 'monapay_verify_signature'
+    || canonical === 'monapay_generate_webhook_snippet'
+    || canonical === 'monapay_quickstart'
+  );
+  const idempotentHint = readOnlyHint
+    || (destructiveHint && !/(?:^|_)(?:rotate|reset)(?:_|$)/.test(canonical))
+    || (!destructiveHint && IDEMPOTENT_WRITE.test(canonical));
+  return {
+    readOnlyHint,
+    destructiveHint,
+    idempotentHint,
+    openWorldHint: canonical !== 'cloud_app_detect',
+  };
+}
+
+export function completeToolMetadata(
+  name: string,
+  title: unknown,
+  annotations: unknown,
+): { title: string; annotations: ToolAnnotations } {
+  const existing = annotations && typeof annotations === 'object'
+    ? annotations as Partial<ToolAnnotations>
+    : {};
+  return {
+    title: typeof title === 'string' && title.trim()
+      ? title
+      : `Công cụ MONA ${name.replace(/^(?:cloud|vibecloud|monapay|mail|agent)_/, '').replaceAll('_', ' ')}`,
+    annotations: { ...toolAnnotationsForName(name), ...existing },
+  };
+}
+
 type McpInternals = {
   _registeredTools: Record<string, ImportedTool>;
 };

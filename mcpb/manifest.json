@@ -2,7 +2,7 @@
   "manifest_version": "0.2",
   "name": "monacloud-mcp",
   "display_name": "MONA Cloud (monadomain)",
-  "version": "0.10.10",
+  "version": "0.10.11",
   "description": "Buy .vn/intl domains in VND, deploy apps, Postgres, email, VietQR pay — Vietnam MCP for AI agents. Domain search & reserve work without login.",
   "author": {
     "name": "The MONA Group",

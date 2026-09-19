@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.11 — 19/09/2026
+
+- Mọi tool (177) có `title` + `annotations` (readOnlyHint/destructiveHint/idempotentHint/openWorldHint) — yêu cầu Claude Connectors Directory; `cloud_subscription_update` xếp destructive vì có thể dừng máy.
+- Remote MCP `https://mcp.monacloud.vn/mcp` (Streamable HTTP + OAuth MONA Pass, DCR) — `docs/remote.md`; bin `monacloud-mcp-remote`.
+
 ## 0.10.10 — 19/09/2026
 
 - Gỡ khẩu "không cần thẻ" khỏi instructions/README/docs (luật MONA 18/09: không nói bằng bước bị bỏ, nói bằng việc người vẫn làm: trả VND qua ví, nạp bằng VietQR).
