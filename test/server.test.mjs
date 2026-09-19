@@ -708,6 +708,8 @@ test('agent catalog đọc template local và chặn slug traversal', async () =
   await writeFile(join(template, 'README.md'), '# Sales chốt đơn\n\nTạo QR và xác nhận tiền.\n');
   await writeFile(join(template, 'AGENTS.md'), '# Agent instructions\n');
   await writeFile(join(template, 'skills', 'payment.md'), '# Payment skill\n');
+  await mkdir(join(template, 'skills', 'bao-gia'), { recursive: true });
+  await writeFile(join(template, 'skills', 'bao-gia', 'SKILL.md'), '---\nname: bao-gia\ndescription: Báo giá\n---\n# Báo giá\n');
   const env = {
     ...process.env,
     MONACLOUD_TOKEN: 'fake-token',
@@ -721,6 +723,7 @@ test('agent catalog đọc template local và chặn slug traversal', async () =
     }));
     assert.match(detail.files['AGENTS.md'], /Agent instructions/);
     assert.match(detail.files['skills/payment.md'], /Payment skill/);
+    assert.match(detail.files['skills/bao-gia/SKILL.md'], /name: bao-gia/);
 
     const invalid = await client.callTool({ name: 'agent_templates_get', arguments: { template: '../secret' } });
     assert.equal(invalid.isError, true);

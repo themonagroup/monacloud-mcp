@@ -21,7 +21,7 @@ const BUILTIN: CatalogEntry[] = [
 ];
 
 const allowedSlug = /^[a-z0-9][a-z0-9-]{0,79}$/;
-const standardFiles = ['README.md', 'AGENTS.md', 'tools.json', 'deploy.md', 'CHECKLIST.md'];
+const standardFiles = ['README.md', 'AGENTS.md', 'SOUL.md', 'IDENTITY.md', 'tools.json', 'deploy.md', 'CHECKLIST.md'];
 
 async function directoryExists(path: string): Promise<boolean> {
   try {
@@ -71,11 +71,16 @@ export class TemplateCatalog {
       return { source: this.config.templatesDir, templates };
     }
     if (this.config.templatesUrl) {
-      const remote = await requestJson<{ templates?: CatalogEntry[] }>(
-        `${this.config.templatesUrl}/catalog.json`,
-        { fetchImpl: this.fetchImpl },
-      );
-      return { source: this.config.templatesUrl, templates: Array.isArray(remote.templates) ? remote.templates : [] };
+      try {
+        const remote = await requestJson<{ templates?: CatalogEntry[] }>(
+          `${this.config.templatesUrl}/catalog.json`,
+          { fetchImpl: this.fetchImpl },
+        );
+        return { source: this.config.templatesUrl, templates: Array.isArray(remote.templates) ? remote.templates : [] };
+      } catch (error) {
+        // Không có mạng / GitHub lỗi: rơi về catalog built-in, nói rõ nguồn để AI không tưởng đủ.
+        return { source: `built-in-wave-1-catalog (remote không đọc được: ${(error as Error).message})`, templates: BUILTIN };
+      }
     }
     return { source: 'built-in-wave-1-catalog', templates: BUILTIN };
   }
@@ -102,19 +107,31 @@ export class TemplateCatalog {
       if (skillsEntry) {
         const skillFiles = await readdir(join(directory, 'skills'), { withFileTypes: true });
         for (const file of skillFiles) {
-          if (!file.isFile() || !/\.(md|json|txt)$/i.test(file.name)) continue;
-          const content = await readFile(join(directory, 'skills', file.name), 'utf8');
-          files[`skills/${file.name}`] = content;
+          if (file.isFile() && /\.(md|json|txt)$/i.test(file.name)) {
+            files[`skills/${file.name}`] = await readFile(join(directory, 'skills', file.name), 'utf8');
+          } else if (file.isDirectory() && allowedSlug.test(file.name)) {
+            // Chuẩn OpenClaw: skills/<ten>/SKILL.md
+            const skillMd = await readOptional(join(directory, 'skills', file.name, 'SKILL.md'));
+            if (skillMd !== undefined) files[`skills/${file.name}/SKILL.md`] = skillMd;
+          }
         }
       }
       return { slug, source: directory, files };
     }
     if (this.config.templatesUrl) {
-      const remote = await requestJson<Record<string, unknown>>(
-        `${this.config.templatesUrl}/templates/${encodeURIComponent(slug)}.json`,
-        { fetchImpl: this.fetchImpl },
-      );
-      return { slug, source: this.config.templatesUrl, ...remote };
+      try {
+        const remote = await requestJson<Record<string, unknown>>(
+          `${this.config.templatesUrl}/templates/${encodeURIComponent(slug)}.json`,
+          { fetchImpl: this.fetchImpl },
+        );
+        return { slug, source: this.config.templatesUrl, ...remote };
+      } catch (error) {
+        const builtin = BUILTIN.find((entry) => entry.slug === slug);
+        if (!builtin) {
+          throw new CloudError('template_not_found', `Không đọc được template ${slug} từ catalog công khai (${(error as Error).message}).`, 'Kiểm mạng hoặc gọi agent_templates_list; catalog: https://github.com/themonagroup/mona-agent-templates');
+        }
+        return { ...builtin, source: `built-in-wave-1-catalog (remote không đọc được)`, status: 'catalog_only' };
+      }
     }
     const template = BUILTIN.find((entry) => entry.slug === slug);
     if (!template) {

@@ -22,7 +22,7 @@ test('stdio JSON-RPC tools/list và cloud_whoami chạy bằng token giả', asy
   );
   assert.match(stdout, /STDIO PASS/);
   const summary = JSON.parse(stdout.trim().slice('STDIO PASS '.length));
-  assert.equal(summary.tools_count, 83 + 30 + 32 + 10 + 1, '0.6/0.7 thêm 10 mail_inbox_*, 0.8.0 thêm cloud_topup_status');
+  assert.equal(summary.tools_count, 83 + 30 + 32 + 10 + 1 + 21, '0.6/0.7 thêm 10 mail_inbox_*, 0.8.0 thêm cloud_topup_status, 0.9-0.10 thêm 21 (cloud_app_*, cloud_base_*, domain reserve/claim, invoice, subscription, credit)');
   assert.equal(summary.version, JSON.parse(await import('node:fs/promises').then((m) => m.readFile(new URL('../package.json', import.meta.url), 'utf8'))).version);
   assert.deepEqual(summary.mail_tools, [
     'mail_account', 'mail_plans', 'mail_plan_set', 'mail_send', 'mail_status', 'mail_list',
@@ -33,6 +33,6 @@ test('stdio JSON-RPC tools/list và cloud_whoami chạy bằng token giả', asy
     'mail_webhook_create', 'mail_webhooks_list', 'mail_webhook_test',
     'mail_suppressions_list', 'mail_suppression_remove', 'mail_template_create', 'mail_stats',
   ].sort());
-  assert.deepEqual(summary.prompts, ['dung-app-ban-hang-monacloud', 'gui-mail-otp-monamail']);
+  assert.deepEqual(summary.prompts, ['mua-ten-mien-monacloud', 'dung-app-ban-hang-monacloud', 'gui-mail-otp-monamail']);
   assert.equal(stderr, '');
 });

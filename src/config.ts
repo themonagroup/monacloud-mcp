@@ -21,6 +21,8 @@ export type Config = {
 
 const cleanBaseUrl = (value: string) => value.replace(/\/+$/, '');
 
+export const DEFAULT_TEMPLATES_URL = 'https://raw.githubusercontent.com/themonagroup/mona-agent-templates/main';
+
 export function readConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const configDir = env.MONACLOUD_CONFIG_DIR
     || join(env.XDG_CONFIG_HOME || join(homedir(), '.config'), 'monacloud');
@@ -37,9 +39,10 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): Config {
     tokenFile: join(configDir, 'token.json'),
     linksFile: join(configDir, 'links.json'),
     templatesDir: env.MONACLOUD_TEMPLATES_DIR || join(homedir(), 'monacloud', 'templates'),
-    templatesUrl: env.MONACLOUD_TEMPLATES_URL
-      ? cleanBaseUrl(env.MONACLOUD_TEMPLATES_URL)
-      : undefined,
+    // Catalog công khai mona-agent-templates (19/09/2026). Đặt MONACLOUD_TEMPLATES_URL="" để tắt remote (chỉ built-in/local).
+    templatesUrl: env.MONACLOUD_TEMPLATES_URL === undefined
+      ? DEFAULT_TEMPLATES_URL
+      : (env.MONACLOUD_TEMPLATES_URL ? cleanBaseUrl(env.MONACLOUD_TEMPLATES_URL) : undefined),
     monapayLinkPath: env.MONAPAY_LINK_PATH || '/api/v1/client/oauth/mona-id/link',
     vibecloudLinkPath: env.VIBECLOUD_LINK_PATH || '/api/auth/monaid/link',
   };

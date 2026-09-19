@@ -72,7 +72,7 @@ try {
   await client.connect(transport);
   const listed = await client.listTools();
   const names = listed.tools.map((tool) => tool.name);
-  assert.equal(names.length, 156);
+  assert.equal(names.length, 177); // 19/09: 0.10.x thêm cloud_app_*, cloud_base_*, domain reserve/claim, mail inbox
   for (const name of [
     'cloud_whoami', 'cloud_balance', 'cloud_topup', 'cloud_services',
     'monapay_create_qr', 'monapay_create_webhook',
@@ -96,7 +96,7 @@ try {
   ]);
   const prompts = await client.listPrompts();
   const promptNames = prompts.prompts.map((prompt) => prompt.name);
-  assert.deepEqual(promptNames, ['dung-app-ban-hang-monacloud', 'gui-mail-otp-monamail']);
+  assert.deepEqual(promptNames, ['mua-ten-mien-monacloud', 'dung-app-ban-hang-monacloud', 'gui-mail-otp-monamail']);
   summary = {
     tools_count: names.length,
     mail_tools: names.filter((name) => name.startsWith('mail_')).sort(),
