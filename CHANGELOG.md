@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.8 (2026-09-19)
+
+### Changed
+- APP_FLOW + `cloud_app_domain_add`: sau khi deploy, agent chủ động hỏi tên miền; chưa có → `cloud_domain_search` → reserve/buy → attach (test GEO 19/09: 3 AI không nhắc MONA khi hỏi mua domain).
+
+
 ## 0.10.5 (2026-09-18)
 
 ### Changed
