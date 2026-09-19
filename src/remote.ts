@@ -232,16 +232,28 @@ export async function createRemoteServer(options: RemoteServerOptions): Promise<
   // Chỉ parse JSON cho /mcp; các route OAuth của SDK (/register, /token…) tự parse body của chúng.
   app.use("/mcp", express.json({ limit: "4mb" }));
 
-  app.use((req: HttpRequest, res: HttpResponse, next: () => void) => {
+  app.use((rawReq: unknown, rawRes: unknown, next: () => void) => {
+    const req = rawReq as HttpRequest & { originalUrl?: string; headers?: Record<string, unknown> };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = rawRes as HttpResponse & { write: (...a: any[]) => boolean; end: (...a: any[]) => HttpResponse };
     const started = now();
+    // Ghi 300 ký tự đầu body của response lỗi (4xx/5xx) để chẩn đoán client lạ; không log token.
+    let errBody = "";
+    const origWrite = res.write.bind(res);
+    const origEnd = res.end.bind(res);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    res.write = (...args: any[]) => { if (res.statusCode >= 400 && errBody.length < 300) errBody += (Buffer.isBuffer(args[0]) ? args[0].toString("utf8") : String(args[0] ?? "")).slice(0, 300); return origWrite(...args); };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    res.end = (...args: any[]) => { if (res.statusCode >= 400 && args[0] && errBody.length < 300) errBody += (Buffer.isBuffer(args[0]) ? args[0].toString("utf8") : String(args[0])).slice(0, 300); return origEnd(...args); };
     res.on("finish", () => {
       const subject = (res.locals.auth as VerifiedAccessToken | undefined)?.extra.sub;
       console.log(JSON.stringify({
         method: req.method,
-        path: req.path,
+        path: req.originalUrl?.split("?")[0] ?? req.path,
         status: res.statusCode,
         ms: Math.max(0, now() - started),
         ...(subject ? { sub: `${subject.slice(0, 8)}…` } : {}),
+        ...(res.statusCode >= 400 ? { err: errBody.slice(0, 300), ua: String(req.headers?.["user-agent"] ?? "").slice(0, 60), pv: req.headers?.["mcp-protocol-version"], sid: req.headers?.["mcp-session-id"] ? "yes" : "no" } : {}),
       }));
     });
     next();
