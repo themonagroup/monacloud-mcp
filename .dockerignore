@@ -1,0 +1,11 @@
+node_modules
+build
+data
+logs
+handoff
+.git
+ctx
+*.log
+test
+support
+.playwright-mcp

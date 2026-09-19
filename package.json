@@ -39,7 +39,8 @@
   ],
   "type": "module",
   "bin": {
-    "monacloud-mcp": "dist/index.js"
+    "monacloud-mcp": "dist/index.js",
+    "monacloud-mcp-remote": "dist/remote-cli.js"
   },
   "main": "dist/server.js",
   "types": "dist/server.d.ts",
@@ -54,18 +55,23 @@
     "build": "tsc -p tsconfig.json",
     "mcpb": "node scripts/build-mcpb.mjs",
     "test": "npm run build && node support/test.mjs",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "start:remote": "node dist/remote-cli.js"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
     "monapay-mcp": "^0.5.5",
     "qrcode": "^1.5.4",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
     "@types/node": "^26.4.0",
     "@types/qrcode": "^1.5.6",
     "typescript": "^7.0.2"
